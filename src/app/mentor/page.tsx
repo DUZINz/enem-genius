@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   MessageCircle, 
   Send, 
@@ -20,41 +21,45 @@ import {
   Image,
   Mic,
   Paperclip,
-  Sparkles
+  Sparkles,
+  FileText,
+  TrendingUp,
+  Award,
+  Target,
+  Calendar,
+  RefreshCw,
+  Trophy,
+  Zap
 } from 'lucide-react'
 import Link from 'next/link'
 import { mockUser } from '@/lib/mock-data'
+import { useMentor } from '@/hooks/useMentor'
+import { PerfilAluno } from '@/components/mentor/PerfilAluno'
+import { CorretorRedacao } from '@/components/mentor/CorretorRedacao'
+import { FuncionalidadesExtras } from '@/components/mentor/FuncionalidadesExtras'
 
 interface Message {
   id: string
   type: 'user' | 'mentor'
   content: string
   timestamp: Date
-  category?: 'redacao' | 'simulado' | 'geral' | 'duvida'
+  category?: 'redacao' | 'simulado' | 'geral' | 'duvida' | 'correcao'
 }
 
-// Data fixa para evitar problemas de hidratação
-const FIXED_INITIAL_DATE = new Date('2024-01-20T10:30:00')
-
 export default function MentorPage() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      type: 'mentor',
-      content: `Olá, ${mockUser.name}! 👋 Sou seu mentor de IA especializado em ENEM. Estou aqui para ajudar você com:
+  const {
+    perfil,
+    mensagens,
+    isLoading,
+    isTyping,
+    corrigirRedacao,
+    enviarMensagem,
+    carregarHistorico,
+    limparChat
+  } = useMentor(mockUser.id)
 
-📝 **Redação**: Correção, dicas de estrutura, repertório sociocultural
-📊 **Simulados**: Explicação de questões, estratégias de resolução
-📚 **Estudos**: Planos personalizados, técnicas de memorização
-❓ **Dúvidas**: Qualquer matéria do ENEM
-
-Como posso te ajudar hoje?`,
-      timestamp: FIXED_INITIAL_DATE,
-      category: 'geral'
-    }
-  ])
   const [inputMessage, setInputMessage] = useState('')
-  const [isTyping, setIsTyping] = useState(false)
+  const [activeTab, setActiveTab] = useState('chat')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -63,7 +68,11 @@ Como posso te ajudar hoje?`,
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [mensagens])
+
+  useEffect(() => {
+    carregarHistorico()
+  }, [carregarHistorico])
 
   const quickQuestions = [
     {
@@ -88,174 +97,10 @@ Como posso te ajudar hoje?`,
     }
   ]
 
-  const generateMentorResponse = (userMessage: string): string => {
-    const lowerMessage = userMessage.toLowerCase()
-    
-    if (lowerMessage.includes('redação') || lowerMessage.includes('redacao')) {
-      return `Ótima pergunta sobre redação! 📝
-
-Para melhorar sua redação no ENEM, foque nestes pontos:
-
-**1. Estrutura Clara:**
-• Introdução: Contextualize o tema e apresente sua tese
-• Desenvolvimento: 2 parágrafos com argumentos distintos
-• Conclusão: Retome a tese e apresente proposta de intervenção
-
-**2. Repertório Sociocultural:**
-• Use dados estatísticos, exemplos históricos, referências culturais
-• Conecte sempre com o tema proposto
-• Diversifique suas fontes (livros, filmes, notícias, estudos)
-
-**3. Competências ENEM:**
-• C1: Domine a norma culta
-• C2: Compreenda bem o tema
-• C3: Organize informações logicamente
-• C4: Use conectivos adequados
-• C5: Elabore proposta detalhada
-
-**Dica prática:** Pratique 1 redação por semana e peça feedback. Quer que eu analise alguma redação sua?`
-    }
-    
-    if (lowerMessage.includes('simulado') || lowerMessage.includes('questão') || lowerMessage.includes('questao')) {
-      return `Excelente! Vamos falar sobre estratégias para simulados! 📊
-
-**Estratégias por Área:**
-
-**📚 Linguagens (90 questões):**
-• Comece pela literatura e gramática (mais rápidas)
-• Deixe interpretação de texto por último
-• Tempo médio: 3 minutos por questão
-
-**🔢 Matemática (45 questões):**
-• Identifique questões fáceis primeiro
-• Use eliminação nas alternativas
-• Tempo médio: 4 minutos por questão
-
-**🌍 Humanas (45 questões):**
-• Foque em História e Geografia do Brasil
-• Atenção aos gráficos e mapas
-• Tempo médio: 4 minutos por questão
-
-**🧪 Natureza (45 questões):**
-• Priorize Biologia e Química
-• Física: foque em fórmulas básicas
-• Tempo médio: 4 minutos por questão
-
-**Dica de ouro:** Faça simulados cronometrados semanalmente para treinar o tempo!`
-    }
-    
-    if (lowerMessage.includes('repertório') || lowerMessage.includes('repertorio') || lowerMessage.includes('cultura')) {
-      return `Vamos construir seu repertório sociocultural! 🎭
-
-**Fontes Essenciais:**
-
-**📚 Literatura:**
-• Machado de Assis, Clarice Lispector
-• "1984" de Orwell, "O Cortiço" de Aluísio Azevedo
-
-**🎬 Cinema/Séries:**
-• "Cidade de Deus", "Central do Brasil"
-• "Black Mirror", "3%" (Netflix)
-
-**📊 Dados e Estudos:**
-• IBGE, IPEA, ONU, OMS
-• Relatórios sobre educação, saúde, meio ambiente
-
-**🏛️ História/Filosofia:**
-• Conceitos: democracia, cidadania, direitos humanos
-• Pensadores: Aristóteles, John Rawls, Hannah Arendt
-
-**📱 Atualidades:**
-• Acompanhe jornais: Folha, Estadão, G1
-• Revistas: Veja, Época, Superinteressante
-
-**Como usar:**
-1. Conecte sempre com o tema
-2. Cite de forma natural, não forçada
-3. Explique brevemente a referência
-4. Use para fundamentar seus argumentos
-
-Quer sugestões específicas para algum tema?`
-    }
-    
-    if (lowerMessage.includes('tempo') || lowerMessage.includes('cronometr') || lowerMessage.includes('pressa')) {
-      return `Gestão de tempo é fundamental! ⏰
-
-**Cronograma Ideal ENEM:**
-
-**Domingo (Linguagens + Redação):**
-• 1h30: Redação (prioridade máxima!)
-• 3h30: 90 questões de Linguagens
-• Sobra: Revisão e transferência do gabarito
-
-**Sábado (Exatas + Humanas + Natureza):**
-• 1h15: Matemática (45 questões)
-• 1h15: Humanas (45 questões)
-• 1h15: Natureza (45 questões)
-• 15min: Revisão e gabarito
-
-**Dicas Práticas:**
-
-✅ **Faça primeiro:** Redação (energia mental máxima)
-✅ **Questões fáceis:** Ganhe confiança e tempo
-✅ **Marque no caderno:** Transfira gabarito no final
-✅ **Não trave:** Máximo 5min por questão difícil
-✅ **Use eliminação:** Descarte alternativas absurdas
-
-**Treino em casa:**
-• Simulados cronometrados
-• Redações em 1h30 máximo
-• Pratique transferir gabarito rapidamente
-
-Lembre-se: é melhor fazer 80% bem feito que 100% correndo!`
-    }
-    
-    // Resposta genérica encorajadora
-    return `Entendi sua dúvida! 🤔
-
-Sou seu mentor especializado em ENEM e estou aqui para te ajudar com qualquer questão. Posso te auxiliar com:
-
-📝 **Redação:** Estrutura, argumentação, repertório, competências
-📊 **Simulados:** Estratégias, resolução de questões, gestão de tempo
-📚 **Conteúdos:** Todas as matérias do ENEM
-🎯 **Planejamento:** Cronogramas de estudo, metas, motivação
-
-Pode ser mais específico sobre o que você gostaria de saber? Por exemplo:
-• "Como melhorar na competência 5 da redação?"
-• "Qual a melhor ordem para resolver questões de matemática?"
-• "Como memorizar fórmulas de física?"
-
-Estou aqui para te ajudar a alcançar seus objetivos! 💪`
-  }
-
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: 'user',
-      content: inputMessage,
-      timestamp: new Date(),
-      category: 'duvida'
-    }
-
-    setMessages(prev => [...prev, userMessage])
+    await enviarMensagem(inputMessage)
     setInputMessage('')
-    setIsTyping(true)
-
-    // Simular delay de resposta da IA
-    setTimeout(() => {
-      const mentorResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'mentor',
-        content: generateMentorResponse(inputMessage),
-        timestamp: new Date(),
-        category: 'geral'
-      }
-      
-      setMessages(prev => [...prev, mentorResponse])
-      setIsTyping(false)
-    }, 1500)
   }
 
   const handleQuickQuestion = (question: string) => {
@@ -269,15 +114,38 @@ Estou aqui para te ajudar a alcançar seus objetivos! 💪`
     }
   }
 
+  const handleVoiceInput = (texto: string) => {
+    setInputMessage(prev => prev + ' ' + texto)
+  }
+
   const getCategoryColor = (category?: string) => {
     switch (category) {
       case 'redacao': return 'bg-blue-100 text-blue-800'
       case 'simulado': return 'bg-green-100 text-green-800'
       case 'geral': return 'bg-purple-100 text-purple-800'
       case 'duvida': return 'bg-orange-100 text-orange-800'
+      case 'correcao': return 'bg-red-100 text-red-800'
       default: return 'bg-gray-100 text-gray-800'
     }
   }
+
+  const getEstatisticasRapidas = () => {
+    if (!perfil) return null
+
+    const mediaGeral = Object.values(perfil.media_notas).reduce((a, b) => a + b, 0) / 5
+    const melhorCompetencia = Object.entries(perfil.media_notas)
+      .sort(([,a], [,b]) => b - a)[0]
+    
+    return {
+      mediaGeral: Math.round(mediaGeral),
+      totalRedacoes: perfil.historico_redacoes,
+      melhorCompetencia: melhorCompetencia[0],
+      notaMelhorCompetencia: melhorCompetencia[1],
+      nivel: perfil.nivel_escrita
+    }
+  }
+
+  const stats = getEstatisticasRapidas()
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -295,201 +163,391 @@ Estou aqui para te ajudar a alcançar seus objetivos! 💪`
               <div className="flex items-center space-x-2">
                 <MessageCircle className="h-8 w-8 text-blue-600" />
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
-                  Mentor IA
+                  Mentor IA Personalizado
                 </h1>
               </div>
             </div>
-            <Badge className="bg-gradient-to-r from-green-500 to-blue-500 text-white">
-              <Star className="h-4 w-4 mr-1" />
-              Online
-            </Badge>
+            <div className="flex items-center space-x-4">
+              {stats && (
+                <div className="hidden md:flex items-center space-x-4 text-sm">
+                  <div className="text-center">
+                    <p className="font-bold text-purple-600">{stats.mediaGeral}</p>
+                    <p className="text-gray-500">Média</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="font-bold text-blue-600">{stats.totalRedacoes}</p>
+                    <p className="text-gray-500">Redações</p>
+                  </div>
+                </div>
+              )}
+              <Badge className="bg-gradient-to-r from-green-500 to-blue-500 text-white">
+                <Star className="h-4 w-4 mr-1" />
+                Online
+              </Badge>
+            </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Sidebar com perguntas rápidas */}
-          <div className="lg:col-span-1">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Estatísticas Rápidas */}
+        {stats && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Perguntas Rápidas</CardTitle>
-                <CardDescription>Clique para enviar</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {quickQuestions.map((question, index) => (
-                  <Button
-                    key={index}
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start text-left h-auto p-3"
-                    onClick={() => handleQuickQuestion(question.text)}
-                  >
-                    <question.icon className="h-4 w-4 mr-2 flex-shrink-0" />
-                    <span className="text-xs">{question.text}</span>
-                  </Button>
-                ))}
+              <CardContent className="p-4 text-center">
+                <Award className="h-8 w-8 text-purple-600 mx-auto mb-2" />
+                <p className="text-2xl font-bold text-purple-600">{stats.mediaGeral}</p>
+                <p className="text-sm text-gray-600">Média Geral</p>
               </CardContent>
             </Card>
-
-            {/* Dicas do Mentor */}
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center space-x-2">
-                  <Lightbulb className="h-5 w-5 text-yellow-500" />
-                  <span>Dica do Dia</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-700">
-                  💡 <strong>Repertório Sociocultural:</strong> Leia pelo menos uma notícia por dia e pense como ela poderia ser usada em uma redação. Crie conexões!
-                </p>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <FileText className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                <p className="text-2xl font-bold text-blue-600">{stats.totalRedacoes}</p>
+                <p className="text-sm text-gray-600">Redações Corrigidas</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <TrendingUp className="h-8 w-8 text-green-600 mx-auto mb-2" />
+                <p className="text-2xl font-bold text-green-600">{stats.notaMelhorCompetencia}</p>
+                <p className="text-sm text-gray-600">Melhor: {stats.melhorCompetencia}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <Target className="h-8 w-8 text-orange-600 mx-auto mb-2" />
+                <p className="text-lg font-bold text-orange-600 capitalize">{stats.nivel}</p>
+                <p className="text-sm text-gray-600">Nível Atual</p>
               </CardContent>
             </Card>
           </div>
+        )}
 
-          {/* Chat Principal */}
-          <div className="lg:col-span-3">
-            <Card className="h-[600px] flex flex-col">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Bot className="h-5 w-5 text-blue-600" />
-                  <span>Chat com Mentor IA</span>
-                </CardTitle>
-                <CardDescription>
-                  Especialista em ENEM • Disponível 24/7 • Multimodal
-                </CardDescription>
-              </CardHeader>
-              
-              {/* Messages Area */}
-              <CardContent className="flex-1 overflow-y-auto space-y-4 p-4">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div className={`max-w-[80%] ${message.type === 'user' ? 'order-2' : 'order-1'}`}>
-                      <div className="flex items-center space-x-2 mb-1">
-                        {message.type === 'mentor' ? (
-                          <Bot className="h-4 w-4 text-blue-600" />
-                        ) : (
-                          <User className="h-4 w-4 text-gray-600" />
-                        )}
-                        <span className="text-xs text-gray-500">
-                          {message.type === 'mentor' ? 'Mentor IA' : 'Você'}
-                        </span>
-                        {message.category && (
-                          <Badge variant="secondary" className={`text-xs ${getCategoryColor(message.category)}`}>
-                            {message.category}
-                          </Badge>
-                        )}
-                      </div>
-                      <div
-                        className={`p-3 rounded-lg ${
-                          message.type === 'user'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-900'
-                        }`}
+        {/* Tabs Principal */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="chat" className="flex items-center space-x-2">
+              <MessageCircle className="h-4 w-4" />
+              <span>Chat</span>
+            </TabsTrigger>
+            <TabsTrigger value="corretor" className="flex items-center space-x-2">
+              <PenTool className="h-4 w-4" />
+              <span>Corretor</span>
+            </TabsTrigger>
+            <TabsTrigger value="perfil" className="flex items-center space-x-2">
+              <BarChart3 className="h-4 w-4" />
+              <span>Perfil</span>
+            </TabsTrigger>
+            <TabsTrigger value="extras" className="flex items-center space-x-2">
+              <Trophy className="h-4 w-4" />
+              <span>Extras</span>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Tab: Chat com Mentor */}
+          <TabsContent value="chat" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Sidebar com perguntas rápidas */}
+              <div className="lg:col-span-1">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Perguntas Rápidas</CardTitle>
+                    <CardDescription>Clique para enviar</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {quickQuestions.map((question, index) => (
+                      <Button
+                        key={index}
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start text-left h-auto p-3"
+                        onClick={() => handleQuickQuestion(question.text)}
                       >
-                        <p className="text-sm whitespace-pre-line">{message.content}</p>
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        {message.timestamp.toLocaleTimeString('pt-BR', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                
-                {isTyping && (
-                  <div className="flex justify-start">
-                    <div className="max-w-[80%]">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <Bot className="h-4 w-4 text-blue-600" />
-                        <span className="text-xs text-gray-500">Mentor IA</span>
-                      </div>
-                      <div className="bg-gray-100 p-3 rounded-lg">
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        <question.icon className="h-4 w-4 mr-2 flex-shrink-0" />
+                        <span className="text-xs">{question.text}</span>
+                      </Button>
+                    ))}
+                  </CardContent>
+                </Card>
+
+                {/* Dicas do Mentor */}
+                <Card className="mt-6">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center space-x-2">
+                      <Lightbulb className="h-5 w-5 text-yellow-500" />
+                      <span>Dica do Dia</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-700">
+                      💡 <strong>Repertório Sociocultural:</strong> Leia pelo menos uma notícia por dia e pense como ela poderia ser usada em uma redação. Crie conexões!
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Ações Rápidas */}
+                <Card className="mt-6">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Ações Rápidas</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => setActiveTab('corretor')}
+                    >
+                      <PenTool className="h-4 w-4 mr-2" />
+                      Corrigir Redação
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => setActiveTab('perfil')}
+                    >
+                      <BarChart3 className="h-4 w-4 mr-2" />
+                      Ver Evolução
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => setActiveTab('extras')}
+                    >
+                      <Trophy className="h-4 w-4 mr-2" />
+                      Desafios
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={limparChat}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Limpar Chat
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Chat Principal */}
+              <div className="lg:col-span-3">
+                <Card className="h-[600px] flex flex-col">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Bot className="h-5 w-5 text-blue-600" />
+                      <span>Chat com Mentor IA Personalizado</span>
+                    </CardTitle>
+                    <CardDescription>
+                      Especialista em ENEM • Personalizado para você • Disponível 24/7
+                    </CardDescription>
+                  </CardHeader>
+                  
+                  {/* Messages Area */}
+                  <CardContent className="flex-1 overflow-y-auto space-y-4 p-4">
+                    {mensagens.length === 0 && (
+                      <div className="text-center py-8">
+                        <Bot className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold mb-2">Olá, {mockUser.name}! 👋</h3>
+                        <p className="text-gray-600 mb-4">
+                          Sou seu mentor de IA especializado e personalizado para o ENEM. 
+                          {perfil && ` Vejo que você já tem ${perfil.historico_redacoes} redação(ões) corrigida(s)!`}
+                        </p>
+                        <div className="grid grid-cols-2 gap-2 max-w-md mx-auto">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setActiveTab('corretor')}
+                          >
+                            📝 Corrigir Redação
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleQuickQuestion('Como melhorar minha argumentação na redação?')}
+                          >
+                            💡 Dicas de Redação
+                          </Button>
                         </div>
                       </div>
+                    )}
+
+                    {mensagens.map((message) => (
+                      <div
+                        key={message.id}
+                        className={`flex ${message.tipo === 'user' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div className={`max-w-[80%] ${message.tipo === 'user' ? 'order-2' : 'order-1'}`}>
+                          <div className="flex items-center space-x-2 mb-1">
+                            {message.tipo === 'mentor' ? (
+                              <Bot className="h-4 w-4 text-blue-600" />
+                            ) : (
+                              <User className="h-4 w-4 text-gray-600" />
+                            )}
+                            <span className="text-xs text-gray-500">
+                              {message.tipo === 'mentor' ? 'Mentor IA' : 'Você'}
+                            </span>
+                            {message.categoria && (
+                              <Badge variant="secondary" className={`text-xs ${getCategoryColor(message.categoria)}`}>
+                                {message.categoria}
+                              </Badge>
+                            )}
+                          </div>
+                          <div
+                            className={`p-3 rounded-lg ${
+                              message.tipo === 'user'
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 text-gray-900'
+                            }`}
+                          >
+                            <p className="text-sm whitespace-pre-line">{message.conteudo}</p>
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            {message.timestamp.toLocaleTimeString('pt-BR', { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {isTyping && (
+                      <div className="flex justify-start">
+                        <div className="max-w-[80%]">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <Bot className="h-4 w-4 text-blue-600" />
+                            <span className="text-xs text-gray-500">Mentor IA</span>
+                          </div>
+                          <div className="bg-gray-100 p-3 rounded-lg">
+                            <div className="flex space-x-1">
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div ref={messagesEndRef} />
+                  </CardContent>
+                  
+                  {/* Input Area */}
+                  <div className="border-t p-4">
+                    <div className="flex space-x-2">
+                      <div className="flex-1 relative">
+                        <Textarea
+                          placeholder="Digite sua pergunta sobre ENEM, redação, simulados... ou cole sua redação para correção!"
+                          value={inputMessage}
+                          onChange={(e) => setInputMessage(e.target.value)}
+                          onKeyPress={handleKeyPress}
+                          className="min-h-[60px] pr-20 resize-none"
+                          rows={2}
+                        />
+                        <div className="absolute right-2 bottom-2 flex space-x-1">
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                            <Paperclip className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                            <Image className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                            <Mic className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Button 
+                        onClick={handleSendMessage}
+                        disabled={!inputMessage.trim() || isTyping}
+                        className="self-end"
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
                     </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Pressione Enter para enviar • Shift+Enter para nova linha
+                    </p>
                   </div>
-                )}
-                
-                <div ref={messagesEndRef} />
-              </CardContent>
-              
-              {/* Input Area */}
-              <div className="border-t p-4">
-                <div className="flex space-x-2">
-                  <div className="flex-1 relative">
-                    <Textarea
-                      placeholder="Digite sua pergunta sobre ENEM, redação, simulados..."
-                      value={inputMessage}
-                      onChange={(e) => setInputMessage(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      className="min-h-[60px] pr-20 resize-none"
-                      rows={2}
-                    />
-                    <div className="absolute right-2 bottom-2 flex space-x-1">
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                        <Paperclip className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                        <Image className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                        <Mic className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <Button 
-                    onClick={handleSendMessage}
-                    disabled={!inputMessage.trim() || isTyping}
-                    className="self-end"
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Pressione Enter para enviar • Shift+Enter para nova linha
-                </p>
+                </Card>
               </div>
-            </Card>
-          </div>
-        </div>
+            </div>
+          </TabsContent>
+
+          {/* Tab: Corretor de Redação */}
+          <TabsContent value="corretor">
+            <CorretorRedacao 
+              onCorrigir={corrigirRedacao}
+              isLoading={isLoading}
+            />
+          </TabsContent>
+
+          {/* Tab: Perfil do Aluno */}
+          <TabsContent value="perfil">
+            {perfil ? (
+              <PerfilAluno perfil={perfil} />
+            ) : (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Nenhum perfil encontrado</h3>
+                  <p className="text-gray-600 mb-4">
+                    Corrija sua primeira redação para criar seu perfil personalizado!
+                  </p>
+                  <Button onClick={() => setActiveTab('corretor')}>
+                    <PenTool className="h-4 w-4 mr-2" />
+                    Corrigir Primeira Redação
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Tab: Funcionalidades Extras */}
+          <TabsContent value="extras">
+            <FuncionalidadesExtras onVoiceInput={handleVoiceInput} />
+          </TabsContent>
+        </Tabs>
 
         {/* Features Info */}
-        <Card className="mt-6">
+        <Card className="mt-8">
           <CardHeader>
-            <CardTitle>Recursos do Mentor IA</CardTitle>
+            <CardTitle>🚀 Recursos do Mentor IA Personalizado</CardTitle>
+            <CardDescription>
+              Sistema inteligente que aprende com seu estilo de escrita e evolui junto com você
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="text-center">
                 <PenTool className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                <h4 className="font-semibold">Correção de Redação</h4>
-                <p className="text-sm text-gray-600">Cole sua redação e receba feedback detalhado</p>
+                <h4 className="font-semibold">Correção Inteligente</h4>
+                <p className="text-sm text-gray-600">
+                  Análise completa das 5 competências com feedback personalizado baseado no seu histórico
+                </p>
               </div>
               <div className="text-center">
                 <BarChart3 className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                <h4 className="font-semibold">Explicação de Questões</h4>
-                <p className="text-sm text-gray-600">Envie questões e receba explicações passo-a-passo</p>
+                <h4 className="font-semibold">Acompanhamento de Evolução</h4>
+                <p className="text-sm text-gray-600">
+                  Gráficos e relatórios que mostram seu progresso ao longo do tempo
+                </p>
               </div>
               <div className="text-center">
-                <BookOpen className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-                <h4 className="font-semibold">Planos de Estudo</h4>
-                <p className="text-sm text-gray-600">Receba cronogramas personalizados</p>
+                <Lightbulb className="h-8 w-8 text-purple-600 mx-auto mb-2" />
+                <h4 className="font-semibold">Dicas Personalizadas</h4>
+                <p className="text-sm text-gray-600">
+                  Recomendações específicas baseadas nos seus pontos fortes e fracos
+                </p>
               </div>
               <div className="text-center">
                 <Sparkles className="h-8 w-8 text-orange-600 mx-auto mb-2" />
-                <h4 className="font-semibold">Suporte Multimodal</h4>
-                <p className="text-sm text-gray-600">Texto, imagem e voz (em breve)</p>
+                <h4 className="font-semibold">Aprendizado Contínuo</h4>
+                <p className="text-sm text-gray-600">
+                  O mentor aprende seu estilo e adapta os feedbacks para maximizar seu aprendizado
+                </p>
               </div>
             </div>
           </CardContent>
