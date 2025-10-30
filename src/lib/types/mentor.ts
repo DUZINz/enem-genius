@@ -19,10 +19,7 @@ export interface PerfilEscrita {
 }
 
 export interface CorrecaoRedacao {
-  id: string
-  aluno_id: string
-  texto_original: string
-  texto_corrigido: string
+  nota_total: number
   notas_competencias: {
     C1: number
     C2: number
@@ -30,12 +27,10 @@ export interface CorrecaoRedacao {
     C4: number
     C5: number
   }
-  nota_total: number
   comentarios: string[]
   erros_detectados: string[]
   dicas_personalizadas: string[]
-  data_correcao: string
-  tempo_correcao: number // em segundos
+  texto_corrigido: string
 }
 
 export interface HistoricoEvolucao {
