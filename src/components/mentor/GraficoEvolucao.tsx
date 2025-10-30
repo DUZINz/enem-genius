@@ -1,1 +1,89 @@
-import React from 'react'\nimport { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'\nimport { Badge } from '@/components/ui/badge'\nimport { PerfilEscrita } from '@/lib/types/mentor'\nimport { \n  TrendingUp, \n  TrendingDown, \n  Target,\n  Calendar,\n  Award,\n  BarChart3\n} from 'lucide-react'\n\ninterface GraficoEvolucaoProps {\n  perfil: PerfilEscrita\n  historico?: any[] // Dados históricos das correções\n}\n\nexport function GraficoEvolucao({ perfil, historico = [] }: GraficoEvolucaoProps) {\n  // Simular dados de evolução para demonstração\n  const dadosEvolucao = [\n    { data: '2024-01-01', C1: 120, C2: 140, C3: 130, C4: 125, C5: 135, total: 650 },\n    { data: '2024-01-15', C1: 135, C2: 155, C3: 145, C4: 140, C5: 150, total: 725 },\n    { data: '2024-02-01', C1: 150, C2: 165, C3: 160, C4: 155, C5: 165, total: 795 },\n    { data: '2024-02-15', C1: perfil.media_notas.C1, C2: perfil.media_notas.C2, C3: perfil.media_notas.C3, C4: perfil.media_notas.C4, C5: perfil.media_notas.C5, total: Object.values(perfil.media_notas).reduce((a, b) => a + b, 0) }\n  ]\n\n  const ultimaEvolucao = dadosEvolucao[dadosEvolucao.length - 1]\n  const penultimaEvolucao = dadosEvolucao[dadosEvolucao.length - 2]\n  const crescimento = ultimaEvolucao.total - penultimaEvolucao.total\n  const crescimentoPercentual = ((crescimento / penultimaEvolucao.total) * 100).toFixed(1)\n\n  const getCompetenciaTendencia = (competencia: keyof typeof perfil.media_notas) => {\n    const atual = ultimaEvolucao[competencia]\n    const anterior = penultimaEvolucao[competencia]\n    const diferenca = atual - anterior\n    \n    if (diferenca > 0) return { icon: TrendingUp, color: 'text-green-600', texto: `+${diferenca}` }\n    if (diferenca < 0) return { icon: TrendingDown, color: 'text-red-600', texto: `${diferenca}` }\n    return { icon: Target, color: 'text-gray-600', texto: '0' }\n  }\n\n  const projecaoNota1000 = () => {\n    const mediaAtual = ultimaEvolucao.total / 5\n    const crescimentoMedio = crescimento / 5\n    \n    if (crescimentoMedio <= 0) return 'Mantenha a prática regular'\n    \n    const pontosRestantes = 1000 - ultimaEvolucao.total\n    const redacoesNecessarias = Math.ceil(pontosRestantes / crescimento)\n    \n    return `Aproximadamente ${redacoesNecessarias} redações para nota 1000`\n  }\n\n  return (\n    <div className=\"space-y-6\">\n      {/* Resumo da Evolução */}\n      <Card>\n        <CardHeader>\n          <CardTitle className=\"flex items-center space-x-2\">\n            <BarChart3 className=\"h-5 w-5 text-blue-600\" />\n            <span>Evolução Geral</span>\n          </CardTitle>\n        </CardHeader>\n        <CardContent>\n          <div className=\"grid grid-cols-1 md:grid-cols-3 gap-6\">\n            <div className=\"text-center\">\n              <div className=\"flex items-center justify-center space-x-2 mb-2\">\n                <Award className=\"h-6 w-6 text-purple-600\" />\n                <span className=\"text-2xl font-bold text-purple-600\">\n                  {ultimaEvolucao.total}\n                </span>\n              </div>\n              <p className=\"text-sm text-gray-600\">Nota Atual</p>\n            </div>\n            \n            <div className=\"text-center\">\n              <div className=\"flex items-center justify-center space-x-2 mb-2\">\n                {crescimento >= 0 ? (\n                  <TrendingUp className=\"h-6 w-6 text-green-600\" />\n                ) : (\n                  <TrendingDown className=\"h-6 w-6 text-red-600\" />\n                )}\n                <span className={`text-2xl font-bold ${\n                  crescimento >= 0 ? 'text-green-600' : 'text-red-600'\n                }`}>\n                  {crescimento >= 0 ? '+' : ''}{crescimento}\n                </span>\n              </div>\n              <p className=\"text-sm text-gray-600\">Última Evolução</p>\n            </div>\n            \n            <div className=\"text-center\">\n              <div className=\"flex items-center justify-center space-x-2 mb-2\">\n                <Target className=\"h-6 w-6 text-orange-600\" />\n                <span className=\"text-2xl font-bold text-orange-600\">\n                  {crescimentoPercentual}%\n                </span>\n              </div>\n              <p className=\"text-sm text-gray-600\">Crescimento</p>\n            </div>\n          </div>\n        </CardContent>\n      </Card>\n\n      {/* Evolução por Competência */}\n      <Card>\n        <CardHeader>\n          <CardTitle>📊 Evolução por Competência</CardTitle>\n        </CardHeader>\n        <CardContent>\n          <div className=\"space-y-4\">\n            {Object.entries(perfil.media_notas).map(([competencia, nota]) => {\n              const tendencia = getCompetenciaTendencia(competencia as keyof typeof perfil.media_notas)\n              const porcentagem = (nota / 200) * 100\n              \n              return (\n                <div key={competencia} className=\"space-y-2\">\n                  <div className=\"flex items-center justify-between\">\n                    <div className=\"flex items-center space-x-2\">\n                      <span className=\"font-medium\">{competencia}</span>\n                      <tendencia.icon className={`h-4 w-4 ${tendencia.color}`} />\n                      <Badge variant=\"outline\" className={tendencia.color}>\n                        {tendencia.texto}\n                      </Badge>\n                    </div>\n                    <span className=\"font-bold\">{nota}/200</span>\n                  </div>\n                  \n                  {/* Barra de progresso visual */}\n                  <div className=\"w-full bg-gray-200 rounded-full h-3\">\n                    <div \n                      className=\"bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full transition-all duration-500\"\n                      style={{ width: `${porcentagem}%` }}\n                    ></div>\n                  </div>\n                  \n                  <div className=\"flex justify-between text-xs text-gray-500\">\n                    <span>0</span>\n                    <span>100</span>\n                    <span>200</span>\n                  </div>\n                </div>\n              )\n            })}\n          </div>\n        </CardContent>\n      </Card>\n\n      {/* Gráfico de Linha Simples */}\n      <Card>\n        <CardHeader>\n          <CardTitle>📈 Histórico de Notas</CardTitle>\n        </CardHeader>\n        <CardContent>\n          <div className=\"space-y-4\">\n            {/* Simulação de gráfico com CSS */}\n            <div className=\"relative h-48 bg-gradient-to-t from-blue-50 to-transparent rounded-lg p-4\">\n              <div className=\"absolute inset-4\">\n                {dadosEvolucao.map((ponto, index) => {\n                  const altura = (ponto.total / 1000) * 100\n                  const posicaoX = (index / (dadosEvolucao.length - 1)) * 100\n                  \n                  return (\n                    <div\n                      key={index}\n                      className=\"absolute flex flex-col items-center\"\n                      style={{ \n                        left: `${posicaoX}%`, \n                        bottom: `${altura}%`,\n                        transform: 'translateX(-50%)'\n                      }}\n                    >\n                      <div className=\"w-3 h-3 bg-blue-600 rounded-full mb-1\"></div>\n                      <div className=\"text-xs font-bold text-blue-600\">\n                        {ponto.total}\n                      </div>\n                      <div className=\"text-xs text-gray-500 mt-1\">\n                        {new Date(ponto.data).toLocaleDateString('pt-BR', { \n                          day: '2-digit', \n                          month: '2-digit' \n                        })}\n                      </div>\n                    </div>\n                  )\n                })}\n                \n                {/* Linha conectando os pontos */}\n                <svg className=\"absolute inset-0 w-full h-full\">\n                  <polyline\n                    fill=\"none\"\n                    stroke=\"#2563eb\"\n                    strokeWidth=\"2\"\n                    points={dadosEvolucao.map((ponto, index) => {\n                      const altura = (ponto.total / 1000) * 100\n                      const posicaoX = (index / (dadosEvolucao.length - 1)) * 100\n                      return `${posicaoX}%,${100 - altura}%`\n                    }).join(' ')}\n                  />\n                </svg>\n              </div>\n              \n              {/* Eixo Y */}\n              <div className=\"absolute left-0 top-0 h-full flex flex-col justify-between text-xs text-gray-500 py-4\">\n                <span>1000</span>\n                <span>750</span>\n                <span>500</span>\n                <span>250</span>\n                <span>0</span>\n              </div>\n            </div>\n          </div>\n        </CardContent>\n      </Card>\n\n      {/* Projeções e Metas */}\n      <Card>\n        <CardHeader>\n          <CardTitle className=\"flex items-center space-x-2\">\n            <Target className=\"h-5 w-5 text-green-600\" />\n            <span>Projeções e Metas</span>\n          </CardTitle>\n        </CardHeader>\n        <CardContent className=\"space-y-4\">\n          <div className=\"grid grid-cols-1 md:grid-cols-2 gap-4\">\n            <div className=\"p-4 bg-green-50 rounded-lg\">\n              <h4 className=\"font-semibold text-green-800 mb-2\">🎯 Meta Nota 1000</h4>\n              <p className=\"text-sm text-green-700\">{projecaoNota1000()}</p>\n            </div>\n            \n            <div className=\"p-4 bg-blue-50 rounded-lg\">\n              <h4 className=\"font-semibold text-blue-800 mb-2\">📅 Próxima Meta</h4>\n              <p className=\"text-sm text-blue-700\">\n                Alcançar média de 180 pontos em todas as competências\n              </p>\n            </div>\n          </div>\n          \n          <div className=\"p-4 bg-purple-50 rounded-lg\">\n            <h4 className=\"font-semibold text-purple-800 mb-2\">💡 Recomendação Semanal</h4>\n            <p className=\"text-sm text-purple-700\">\n              Com base na sua evolução, recomendo focar em {' '}\n              {Object.entries(perfil.media_notas)\n                .sort(([,a], [,b]) => a - b)[0][0]} {' '}\n              esta semana. Pratique 2-3 redações focando nesta competência.\n            </p>\n          </div>\n        </CardContent>\n      </Card>\n    </div>\n  )\n}"
+'use client'
+
+import React from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+
+interface DadosEvolucao {
+  data: string
+  nota_total: number
+  competencias: {
+    [key: string]: number
+  }
+}
+
+interface GraficoEvolucaoProps {
+  dados: DadosEvolucao[]
+}
+
+export function GraficoEvolucao({ dados }: GraficoEvolucaoProps) {
+  const getNotaColor = (nota: number) => {
+    if (nota >= 160) return 'text-green-600 bg-green-50'
+    if (nota >= 120) return 'text-yellow-600 bg-yellow-50'
+    return 'text-red-600 bg-red-50'
+  }
+
+  const getTendencia = () => {
+    if (dados.length < 2) return null
+    
+    const ultimaNota = dados[dados.length - 1].nota_total
+    const penultimaNota = dados[dados.length - 2].nota_total
+    const diferenca = ultimaNota - penultimaNota
+    
+    if (diferenca > 0) return { tipo: 'subiu', valor: diferenca, cor: 'text-green-600' }
+    if (diferenca < 0) return { tipo: 'desceu', valor: Math.abs(diferenca), cor: 'text-red-600' }
+    return { tipo: 'manteve', valor: 0, cor: 'text-gray-600' }
+  }
+
+  const tendencia = getTendencia()
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>📈 Evolução das Notas</span>
+          {tendencia && (
+            <Badge variant="outline" className={tendencia.cor}>
+              {tendencia.tipo === 'subiu' && `↗ +${tendencia.valor} pts`}
+              {tendencia.tipo === 'desceu' && `↘ -${tendencia.valor} pts`}
+              {tendencia.tipo === 'manteve' && '→ Manteve'}
+            </Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {dados.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <p>Nenhuma redação corrigida ainda.</p>
+            <p className="text-sm">Envie sua primeira redação para ver sua evolução!</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {dados.map((item, index) => (
+              <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                <div className="flex items-center space-x-4">
+                  <div className="text-sm text-gray-600">
+                    {new Date(item.data).toLocaleDateString('pt-BR')}
+                  </div>
+                  <div className={`font-bold text-lg ${getNotaColor(item.nota_total)}`}>
+                    {item.nota_total}/1000
+                  </div>
+                </div>
+                <div className="flex space-x-2">
+                  {Object.entries(item.competencias).map(([comp, nota]) => (
+                    <div key={comp} className="text-center">
+                      <div className="text-xs text-gray-500">{comp}</div>
+                      <div className={`text-sm font-semibold ${getNotaColor(nota)}`}>
+                        {nota}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}

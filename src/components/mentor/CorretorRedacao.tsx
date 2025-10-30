@@ -1,1 +1,276 @@
-import React, { useState } from 'react'\nimport { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'\nimport { Button } from '@/components/ui/button'\nimport { Badge } from '@/components/ui/badge'\nimport { Textarea } from '@/components/ui/textarea'\nimport { Progress } from '@/components/ui/progress'\nimport { CorrecaoRedacao } from '@/lib/types/mentor'\nimport { \n  FileText, \n  Send, \n  Loader2, \n  CheckCircle, \n  AlertCircle,\n  Lightbulb,\n  BarChart3,\n  RefreshCw,\n  Copy,\n  Download\n} from 'lucide-react'\n\ninterface CorretorRedacaoProps {\n  onCorrigir: (texto: string) => Promise<CorrecaoRedacao | null>\n  isLoading: boolean\n}\n\nexport export function CorretorRedacao({ onCorrigir, isLoading }: CorretorRedacaoProps) {\n  const [texto, setTexto] = useState('')\n  const [correcaoAtual, setCorrecaoAtual] = useState<CorrecaoRedacao | null>(null)\n  const [mostrarTextoCorrigido, setMostrarTextoCorrigido] = useState(false)\n\n  const handleCorrigir = async () => {\n    if (!texto.trim()) return\n    \n    const resultado = await onCorrigir(texto)\n    if (resultado) {\n      setCorrecaoAtual(resultado)\n    }\n  }\n\n  const handleNovaRedacao = () => {\n    setTexto('')\n    setCorrecaoAtual(null)\n    setMostrarTextoCorrigido(false)\n  }\n\n  const copiarTextoCorrigido = () => {\n    if (correcaoAtual?.texto_corrigido) {\n      navigator.clipboard.writeText(correcaoAtual.texto_corrigido)\n    }\n  }\n\n  const getNotaColor = (nota: number) => {\n    if (nota >= 160) return 'text-green-600'\n    if (nota >= 120) return 'text-yellow-600'\n    return 'text-red-600'\n  }\n\n  const getNotaStatus = (nota: number) => {\n    if (nota >= 160) return { icon: CheckCircle, color: 'text-green-600', label: 'Boa' }\n    if (nota >= 120) return { icon: AlertCircle, color: 'text-yellow-600', label: 'Regular' }\n    return { icon: AlertCircle, color: 'text-red-600', label: 'Precisa melhorar' }\n  }\n\n  return (\n    <div className=\"space-y-6\">\n      {/* Área de Input */}\n      <Card>\n        <CardHeader>\n          <CardTitle className=\"flex items-center space-x-2\">\n            <FileText className=\"h-5 w-5 text-blue-600\" />\n            <span>Envie sua Redação para Correção</span>\n          </CardTitle>\n        </CardHeader>\n        <CardContent className=\"space-y-4\">\n          <Textarea\n            placeholder=\"Cole aqui o texto da sua redação...\n\nDica: Escreva pelo menos 200 palavras para uma análise completa. O mentor analisará:\n• Estrutura e organização\n• Gramática e ortografia\n• Argumentação e coerência\n• Proposta de intervenção\n• Repertório sociocultural\"\n            value={texto}\n            onChange={(e) => setTexto(e.target.value)}\n            className=\"min-h-[200px] resize-none\"\n            disabled={isLoading}\n          />\n          \n          <div className=\"flex items-center justify-between\">\n            <div className=\"text-sm text-gray-500\">\n              {texto.length} caracteres • {texto.split(' ').filter(word => word.length > 0).length} palavras\n            </div>\n            \n            <div className=\"flex space-x-2\">\n              {correcaoAtual && (\n                <Button \n                  variant=\"outline\" \n                  onClick={handleNovaRedacao}\n                  className=\"flex items-center space-x-2\"\n                >\n                  <RefreshCw className=\"h-4 w-4\" />\n                  <span>Nova Redação</span>\n                </Button>\n              )}\n              \n              <Button \n                onClick={handleCorrigir}\n                disabled={!texto.trim() || isLoading}\n                className=\"flex items-center space-x-2\"\n              >\n                {isLoading ? (\n                  <Loader2 className=\"h-4 w-4 animate-spin\" />\n                ) : (\n                  <Send className=\"h-4 w-4\" />\n                )}\n                <span>{isLoading ? 'Corrigindo...' : 'Corrigir Redação'}</span>\n              </Button>\n            </div>\n          </div>\n        </CardContent>\n      </Card>\n\n      {/* Resultado da Correção */}\n      {correcaoAtual && (\n        <div className=\"space-y-6\">\n          {/* Notas por Competência */}\n          <Card>\n            <CardHeader>\n              <CardTitle className=\"flex items-center justify-between\">\n                <div className=\"flex items-center space-x-2\">\n                  <BarChart3 className=\"h-5 w-5 text-purple-600\" />\n                  <span>Resultado da Correção</span>\n                </div>\n                <div className=\"text-right\">\n                  <div className=\"text-2xl font-bold text-purple-600\">\n                    {correcaoAtual.nota_total}\n                    <span className=\"text-sm text-gray-500\">/1000</span>\n                  </div>\n                  <p className=\"text-sm text-gray-600\">Nota Total</p>\n                </div>\n              </CardTitle>\n            </CardHeader>\n            <CardContent>\n              <div className=\"grid grid-cols-1 md:grid-cols-5 gap-4\">\n                {Object.entries(correcaoAtual.notas_competencias).map(([comp, nota]) => {\n                  const { icon: StatusIcon, color, label } = getNotaStatus(nota)\n                  const porcentagem = (nota / 200) * 100\n                  \n                  return (\n                    <div key={comp} className=\"text-center space-y-2\">\n                      <div className=\"flex items-center justify-center space-x-1\">\n                        <span className=\"font-bold text-lg\">{comp}</span>\n                        <StatusIcon className={`h-4 w-4 ${color}`} />\n                      </div>\n                      <div className={`text-2xl font-bold ${getNotaColor(nota)}`}>\n                        {nota}\n                      </div>\n                      <Progress value={porcentagem} className=\"h-2\" />\n                      <p className=\"text-xs text-gray-600\">{label}</p>\n                    </div>\n                  )\n                })}\n              </div>\n            </CardContent>\n          </Card>\n\n          {/* Comentários e Dicas */}\n          <Card>\n            <CardHeader>\n              <CardTitle className=\"flex items-center space-x-2\">\n                <Lightbulb className=\"h-5 w-5 text-yellow-600\" />\n                <span>Feedback Detalhado</span>\n              </CardTitle>\n            </CardHeader>\n            <CardContent className=\"space-y-4\">\n              {correcaoAtual.comentarios.map((comentario, index) => {\n                const isError = comentario.includes('🔴')\n                const isWarning = comentario.includes('🟡')\n                const isSuccess = comentario.includes('🟢')\n                \n                let bgColor = 'bg-blue-50 border-blue-200'\n                if (isError) bgColor = 'bg-red-50 border-red-200'\n                else if (isWarning) bgColor = 'bg-yellow-50 border-yellow-200'\n                else if (isSuccess) bgColor = 'bg-green-50 border-green-200'\n                \n                return (\n                  <div key={index} className={`p-3 rounded-lg border ${bgColor}`}>\n                    <p className=\"text-sm\">{comentario}</p>\n                  </div>\n                )\n              })}\n            </CardContent>\n          </Card>\n\n          {/* Erros Detectados */}\n          {correcaoAtual.erros_detectados.length > 0 && (\n            <Card>\n              <CardHeader>\n                <CardTitle className=\"text-red-700\">🔍 Erros Identificados</CardTitle>\n              </CardHeader>\n              <CardContent>\n                <div className=\"flex flex-wrap gap-2\">\n                  {correcaoAtual.erros_detectados.map((erro, index) => (\n                    <Badge key={index} variant=\"destructive\" className=\"text-xs\">\n                      {erro}\n                    </Badge>\n                  ))}\n                </div>\n              </CardContent>\n            </Card>\n          )}\n\n          {/* Dicas Personalizadas */}\n          {correcaoAtual.dicas_personalizadas.length > 0 && (\n            <Card>\n              <CardHeader>\n                <CardTitle className=\"text-blue-700\">💡 Dicas Personalizadas</CardTitle>\n              </CardHeader>\n              <CardContent>\n                <ul className=\"space-y-2\">\n                  {correcaoAtual.dicas_personalizadas.map((dica, index) => (\n                    <li key={index} className=\"flex items-start space-x-2\">\n                      <div className=\"w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0\" />\n                      <span className=\"text-sm\">{dica}</span>\n                    </li>\n                  ))}\n                </ul>\n              </CardContent>\n            </Card>\n          )}\n\n          {/* Texto Corrigido */}\n          <Card>\n            <CardHeader>\n              <CardTitle className=\"flex items-center justify-between\">\n                <span>📝 Versão Corrigida</span>\n                <div className=\"flex space-x-2\">\n                  <Button \n                    variant=\"outline\" \n                    size=\"sm\"\n                    onClick={() => setMostrarTextoCorrigido(!mostrarTextoCorrigido)}\n                  >\n                    {mostrarTextoCorrigido ? 'Ocultar' : 'Mostrar'}\n                  </Button>\n                  {mostrarTextoCorrigido && (\n                    <Button \n                      variant=\"outline\" \n                      size=\"sm\"\n                      onClick={copiarTextoCorrigido}\n                      className=\"flex items-center space-x-1\"\n                    >\n                      <Copy className=\"h-3 w-3\" />\n                      <span>Copiar</span>\n                    </Button>\n                  )}\n                </div>\n              </CardTitle>\n            </CardHeader>\n            {mostrarTextoCorrigido && (\n              <CardContent>\n                <div className=\"bg-gray-50 p-4 rounded-lg\">\n                  <p className=\"text-sm whitespace-pre-line leading-relaxed\">\n                    {correcaoAtual.texto_corrigido}\n                  </p>\n                </div>\n              </CardContent>\n            )}\n          </Card>\n        </div>\n      )}\n    </div>\n  )\n}"
+'use client'
+
+import React, { useState } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
+import { Progress } from '@/components/ui/progress'
+import { CorrecaoRedacao } from '@/lib/types/mentor'
+import {
+  FileText,
+  Send,
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+  Lightbulb,
+  BarChart3,
+  RefreshCw,
+  Copy,
+  Download
+} from 'lucide-react'
+
+interface CorretorRedacaoProps {
+  onCorrigir: (texto: string) => Promise<CorrecaoRedacao | null>
+  isLoading: boolean
+}
+
+export function CorretorRedacao({ onCorrigir, isLoading }: CorretorRedacaoProps) {
+  const [texto, setTexto] = useState('')
+  const [correcaoAtual, setCorrecaoAtual] = useState<CorrecaoRedacao | null>(null)
+  const [mostrarTextoCorrigido, setMostrarTextoCorrigido] = useState(false)
+
+  const handleCorrigir = async () => {
+    if (!texto.trim()) return
+    
+    const resultado = await onCorrigir(texto)
+    if (resultado) {
+      setCorrecaoAtual(resultado)
+    }
+  }
+
+  const handleNovaRedacao = () => {
+    setTexto('')
+    setCorrecaoAtual(null)
+    setMostrarTextoCorrigido(false)
+  }
+
+  const copiarTextoCorrigido = () => {
+    if (correcaoAtual?.texto_corrigido) {
+      navigator.clipboard.writeText(correcaoAtual.texto_corrigido)
+    }
+  }
+
+  const getNotaColor = (nota: number) => {
+    if (nota >= 160) return 'text-green-600'
+    if (nota >= 120) return 'text-yellow-600'
+    return 'text-red-600'
+  }
+
+  const getNotaStatus = (nota: number) => {
+    if (nota >= 160) return { icon: CheckCircle, color: 'text-green-600', label: 'Boa' }
+    if (nota >= 120) return { icon: AlertCircle, color: 'text-yellow-600', label: 'Regular' }
+    return { icon: AlertCircle, color: 'text-red-600', label: 'Precisa melhorar' }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Área de Input */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <FileText className="h-5 w-5 text-blue-600" />
+            <span>Envie sua Redação para Correção</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Textarea
+            placeholder={`Cole aqui o texto da sua redação...
+
+Dica: Escreva pelo menos 200 palavras para uma análise completa. O mentor analisará:
+• Estrutura e organização
+• Gramática e ortografia
+• Argumentação e coerência
+• Proposta de intervenção
+• Repertório sociocultural`}
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            className="min-h-[200px] resize-none"
+            disabled={isLoading}
+          />
+          
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-500">
+              {texto.length} caracteres • {texto.split(' ').filter(word => word.length > 0).length} palavras
+            </div>
+            
+            <div className="flex space-x-2">
+              {correcaoAtual && (
+                <Button 
+                  variant="outline" 
+                  onClick={handleNovaRedacao}
+                  className="flex items-center space-x-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  <span>Nova Redação</span>
+                </Button>
+              )}
+              
+              <Button 
+                onClick={handleCorrigir}
+                disabled={!texto.trim() || isLoading}
+                className="flex items-center space-x-2"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                <span>{isLoading ? 'Corrigindo...' : 'Corrigir Redação'}</span>
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Resultado da Correção */}
+      {correcaoAtual && (
+        <div className="space-y-6">
+          {/* Notas por Competência */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <BarChart3 className="h-5 w-5 text-purple-600" />
+                  <span>Resultado da Correção</span>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {correcaoAtual.nota_total}
+                    <span className="text-sm text-gray-500">/1000</span>
+                  </div>
+                  <p className="text-sm text-gray-600">Nota Total</p>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                {Object.entries(correcaoAtual.notas_competencias).map(([comp, nota]) => {
+                  const { icon: StatusIcon, color, label } = getNotaStatus(nota)
+                  const porcentagem = (nota / 200) * 100
+                  
+                  return (
+                    <div key={comp} className="text-center space-y-2">
+                      <div className="flex items-center justify-center space-x-1">
+                        <span className="font-bold text-lg">{comp}</span>
+                        <StatusIcon className={`h-4 w-4 ${color}`} />
+                      </div>
+                      <div className={`text-2xl font-bold ${getNotaColor(nota)}`}>
+                        {nota}
+                      </div>
+                      <Progress value={porcentagem} className="h-2" />
+                      <p className="text-xs text-gray-600">{label}</p>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Comentários e Dicas */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Lightbulb className="h-5 w-5 text-yellow-600" />
+                <span>Feedback Detalhado</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {correcaoAtual.comentarios.map((comentario, index) => {
+                const isError = comentario.includes('🔴')
+                const isWarning = comentario.includes('🟡')
+                const isSuccess = comentario.includes('🟢')
+                
+                let bgColor = 'bg-blue-50 border-blue-200'
+                if (isError) bgColor = 'bg-red-50 border-red-200'
+                else if (isWarning) bgColor = 'bg-yellow-50 border-yellow-200'
+                else if (isSuccess) bgColor = 'bg-green-50 border-green-200'
+                
+                return (
+                  <div key={index} className={`p-3 rounded-lg border ${bgColor}`}>
+                    <p className="text-sm">{comentario}</p>
+                  </div>
+                )
+              })}
+            </CardContent>
+          </Card>
+
+          {/* Erros Detectados */}
+          {correcaoAtual.erros_detectados.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-red-700">🔍 Erros Identificados</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {correcaoAtual.erros_detectados.map((erro, index) => (
+                    <Badge key={index} variant="destructive" className="text-xs">
+                      {erro}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Dicas Personalizadas */}
+          {correcaoAtual.dicas_personalizadas.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-blue-700">💡 Dicas Personalizadas</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {correcaoAtual.dicas_personalizadas.map((dica, index) => (
+                    <li key={index} className="flex items-start space-x-2">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
+                      <span className="text-sm">{dica}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Texto Corrigido */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>📝 Versão Corrigida</span>
+                <div className="flex space-x-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setMostrarTextoCorrigido(!mostrarTextoCorrigido)}
+                  >
+                    {mostrarTextoCorrigido ? 'Ocultar' : 'Mostrar'}
+                  </Button>
+                  {mostrarTextoCorrigido && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={copiarTextoCorrigido}
+                      className="flex items-center space-x-1"
+                    >
+                      <Copy className="h-3 w-3" />
+                      <span>Copiar</span>
+                    </Button>
+                  )}
+                </div>
+              </CardTitle>
+            </CardHeader>
+            {mostrarTextoCorrigido && (
+              <CardContent>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm whitespace-pre-line leading-relaxed">
+                    {correcaoAtual.texto_corrigido}
+                  </p>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        </div>
+      )}
+    </div>
+  )
+}

@@ -269,57 +269,59 @@ function gerarMensagemMotivacional(perfil: PerfilEscrita, notaTotal: number): st
   return mensagemBase + complemento
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const body: EntradaAPI = await request.json()
-    
-    if (!body.texto || !body.aluno_id) {
+    const { texto } = await request.json()
+
+    if (!texto || texto.trim().length < 50) {
       return NextResponse.json(
-        { error: 'Texto e aluno_id são obrigatórios' },
+        { error: 'Texto muito curto para análise' },
         { status: 400 }
       )
     }
-    
-    // Analisar o texto
-    const { erros, comentarios, dicas } = analisarTexto(body.texto, body.perfil_atual)
-    
-    // Calcular notas
-    const notas = calcularNotas(body.texto, body.perfil_atual)
-    const notaTotal = Object.values(notas).reduce((a, b) => a + b, 0)
-    
-    // Gerar texto corrigido
-    const textoCorrigido = gerarTextoCorrigido(body.texto)
-    
-    // Atualizar perfil
-    const perfilAtualizado = atualizarPerfil(body.perfil_atual, notas, erros)
-    
-    // Gerar mensagem motivacional
-    const mensagemMotivacional = gerarMensagemMotivacional(perfilAtualizado, notaTotal)
-    
-    // Gerar recomendações futuras
-    const recomendacoesFuturas = [
-      'Leia editoriais de jornais para melhorar argumentação',
-      'Pratique redações com temas variados',
-      'Estude repertórios socioculturais atuais',
-      'Revise as 5 competências do ENEM regularmente'
-    ]
-    
-    const resposta: SaidaAPI = {
-      texto_corrigido: textoCorrigido,
-      comentarios: [...comentarios, ...dicas],
-      notas_competencias: notas,
-      nota_total: notaTotal,
-      erros_detectados: erros,
-      dicas_personalizadas: dicas,
-      recomendacoes_futuras: recomendacoesFuturas,
-      mensagem_motivacional: mensagemMotivacional,
-      perfil_atualizado: perfilAtualizado
+
+    // Função para arredondar notas para números inteiros
+    const arredondarNota = (nota: number): number => {
+      return Math.round(Math.max(0, Math.min(200, nota)))
     }
-    
-    return NextResponse.json(resposta)
-    
+
+    // Simulação da correção com notas arredondadas
+    const notas = {
+      C1: arredondarNota(Math.random() * 40 + 160), // 160-200
+      C2: arredondarNota(Math.random() * 40 + 160), // 160-200  
+      C3: arredondarNota(Math.random() * 40 + 140), // 140-180
+      C4: arredondarNota(Math.random() * 40 + 140), // 140-180
+      C5: arredondarNota(Math.random() * 40 + 120)  // 120-160
+    }
+
+    const notaTotal = Object.values(notas).reduce((sum, nota) => sum + nota, 0)
+
+    const correcao: CorrecaoRedacao = {
+      nota_total: notaTotal,
+      notas_competencias: notas,
+      comentarios: [
+        "🟢 Boa estrutura dissertativa com introdução, desenvolvimento e conclusão bem definidos.",
+        "🟡 Argumentação presente, mas pode ser mais aprofundada com mais repertório sociocultural.",
+        "🔴 Atenção à concordância verbal em alguns trechos.",
+        "🟢 Proposta de intervenção completa com agente, ação, meio e detalhamento."
+      ],
+      erros_detectados: [
+        "Concordância verbal",
+        "Uso inadequado de conectivos",
+        "Repetição de palavras"
+      ],
+      dicas_personalizadas: [
+        "Utilize mais conectivos para melhorar a coesão textual",
+        "Incorpore dados estatísticos para fortalecer seus argumentos",
+        "Varie o vocabulário para evitar repetições",
+        "Detalhe melhor a proposta de intervenção"
+      ],
+      texto_corrigido: texto.replace(/\b(\w+)\s+\1\b/g, '$1')
+    }
+
+    return NextResponse.json(correcao)
   } catch (error) {
-    console.error('Erro na API do mentor:', error)
+    console.error('Erro na correção:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
