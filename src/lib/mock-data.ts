@@ -3,8 +3,8 @@ import { Redacao, Competencia, Questao, AIPromptTemplate } from './types'
 // Mock data para desenvolvimento
 export const mockUser = {
   id: '1',
-  name: 'Ana Silva',
-  email: 'ana@exemplo.com',
+  name: 'Teste',
+  email: 'teste@exemplo.com',
   role: 'student' as const,
   preferences: {
     theme: 'light' as const,
