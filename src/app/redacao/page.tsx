@@ -1,128 +1,81 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useDropzone } from 'react-dropzone'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
 import { 
-  Upload, 
+  ArrowLeft, 
   FileText, 
-  Camera, 
-  Loader2, 
-  CheckCircle, 
+  Upload, 
+  Send, 
+  Loader2,
+  CheckCircle,
   AlertCircle,
-  PenTool,
-  Brain,
-  ArrowLeft,
-  Download,
-  Eye,
-  Lightbulb
+  Lightbulb,
+  BarChart3,
+  Copy,
+  Download
 } from 'lucide-react'
 import Link from 'next/link'
-import { mockCompetencias, aiPromptTemplates } from '@/lib/mock-data'
-import { formatScore, getGradeColor, calculateGrade } from '@/lib/utils'
-
-interface RedacaoResult {
-  notaTotal: number
-  competencias: typeof mockCompetencias
-  textoRevisado: string
-  feedback: string
-  dicasRepertorio: string[]
-  tagEstilo: string
-}
+import { useMentor } from '@/hooks/useMentor'
+import { CorrecaoRedacao as CorrecaoRedacaoType } from '@/lib/types/mentor'
 
 export default function RedacaoPage() {
   const [activeTab, setActiveTab] = useState('escrever')
-  const [texto, setTexto] = useState('')
   const [tema, setTema] = useState('')
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [ocrProcessing, setOcrProcessing] = useState(false)
-  const [result, setResult] = useState<RedacaoResult | null>(null)
-  const [uploadedImage, setUploadedImage] = useState<string | null>(null)
+  const [redacao, setRedacao] = useState('')
+  const [correcaoAtual, setCorrecaoAtual] = useState<CorrecaoRedacaoType | null>(null)
+  const [mostrarTextoCorrigido, setMostrarTextoCorrigido] = useState(false)
+  
+  const { corrigirRedacao, isLoading, erro } = useMentor()
 
-  // Simulação de OCR
-  const processOCR = async (file: File) => {
-    setOcrProcessing(true)
-    // Simular processamento OCR
-    await new Promise(resolve => setTimeout(resolve, 3000))
+  const handleCorrigir = async () => {
+    if (!redacao.trim()) return
     
-    const mockOCRText = `A democratização do acesso ao cinema no Brasil
-
-O cinema, considerado a sétima arte, desempenha um papel fundamental na formação cultural e social dos indivíduos. No Brasil, entretanto, o acesso a essa forma de expressão artística ainda enfrenta diversos obstáculos que impedem sua plena democratização. Nesse contexto, é necessário analisar os fatores que limitam o acesso ao cinema no país e propor soluções eficazes para superar essas barreiras.
-
-Em primeiro lugar, a concentração geográfica das salas de cinema constitui um dos principais entraves à democratização do acesso. Segundo dados do Instituto Brasileiro de Geografia e Estatística, a maioria dos cinemas está localizada em grandes centros urbanos e regiões metropolitanas, deixando vastas áreas do interior do país sem acesso a essa forma de entretenimento cultural. Essa desigualdade regional reflete as disparidades socioeconômicas existentes no Brasil e contribui para a perpetuação das diferenças culturais entre as diferentes regiões.
-
-Além disso, o alto custo dos ingressos representa outro obstáculo significativo. Para uma parcela considerável da população brasileira, o preço de um ingresso de cinema equivale a uma porcentagem substancial da renda familiar, tornando essa atividade cultural inacessível. Essa situação é agravada pela falta de políticas públicas efetivas que promovam o acesso democrático ao cinema, especialmente para as camadas mais vulneráveis da sociedade.
-
-Diante desse cenário, é fundamental que o poder público implemente medidas concretas para democratizar o acesso ao cinema no Brasil. Uma proposta viável seria a criação de um programa nacional de cinemas itinerantes, que levaria sessões cinematográficas a municípios que não possuem salas de exibição. Essa iniciativa, coordenada pelo Ministério da Cultura em parceria com prefeituras locais, utilizaria equipamentos móveis para exibir filmes em praças, escolas e centros comunitários, garantindo que populações rurais e de pequenas cidades tenham acesso à produção cinematográfica nacional e internacional.
-
-Portanto, a democratização do acesso ao cinema no Brasil requer ações coordenadas que abordem tanto a questão geográfica quanto a econômica. Somente através de políticas públicas efetivas e do comprometimento de diferentes esferas governamentais será possível garantir que o cinema cumpra seu papel como instrumento de formação cultural e social para todos os brasileiros.`
-    
-    setTexto(mockOCRText)
-    setTema('A democratização do acesso ao cinema no Brasil')
-    setOcrProcessing(false)
+    const resultado = await corrigirRedacao(redacao)
+    if (resultado) {
+      setCorrecaoAtual(resultado)
+      setActiveTab('resultado')
+    }
   }
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const file = acceptedFiles[0]
-    if (file) {
-      const imageUrl = URL.createObjectURL(file)
-      setUploadedImage(imageUrl)
-      processOCR(file)
-    }
-  }, [])
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'image/*': ['.png', '.jpg', '.jpeg']
-    },
-    maxFiles: 1
-  })
-
-  // Simulação de correção por IA
-  const corrigirRedacao = async () => {
-    if (!texto.trim()) return
-
-    setIsProcessing(true)
-    
-    // Simular processamento da IA
-    await new Promise(resolve => setTimeout(resolve, 4000))
-    
-    const mockResult: RedacaoResult = {
-      notaTotal: calculateGrade(mockCompetencias) * 100,
-      competencias: mockCompetencias,
-      textoRevisado: texto.replace(
-        'entretanto',
-        '[SUGESTÃO: contudo] entretanto'
-      ).replace(
-        'Nesse contexto',
-        '[SUGESTÃO: Diante disso] Nesse contexto'
-      ),
-      feedback: 'Excelente redação! Sua argumentação está bem estruturada e você demonstra domínio das competências avaliadas. Pontos fortes: organização textual clara, uso adequado de conectivos e proposta de intervenção viável. Para melhorar ainda mais, considere diversificar seu repertório sociocultural com mais referências de diferentes áreas do conhecimento.',
-      dicasRepertorio: [
-        'Cite dados do ANCINE sobre distribuição de cinemas',
-        'Mencione o conceito de "desertos culturais"',
-        'Referencie a Lei de Incentivo à Cultura (Lei Rouanet)',
-        'Inclua exemplos de políticas públicas culturais de outros países'
-      ],
-      tagEstilo: 'dissertativo-argumentativo'
-    }
-    
-    setResult(mockResult)
-    setIsProcessing(false)
-    setActiveTab('resultado')
+  const handleNovaRedacao = () => {
+    setRedacao('')
+    setTema('')
+    setCorrecaoAtual(null)
+    setMostrarTextoCorrigido(false)
+    setActiveTab('escrever')
   }
+
+  const copiarTextoCorrigido = () => {
+    if (correcaoAtual?.texto_corrigido) {
+      navigator.clipboard.writeText(correcaoAtual.texto_corrigido)
+    }
+  }
+
+  const getNotaColor = (nota: number) => {
+    if (nota >= 160) return 'text-green-600'
+    if (nota >= 120) return 'text-yellow-600'
+    return 'text-red-600'
+  }
+
+  const getNotaStatus = (nota: number) => {
+    if (nota >= 160) return { icon: CheckCircle, color: 'text-green-600', label: 'Boa' }
+    if (nota >= 120) return { icon: AlertCircle, color: 'text-yellow-600', label: 'Regular' }
+    return { icon: AlertCircle, color: 'text-red-600', label: 'Precisa melhorar' }
+  }
+
+  const palavras = redacao.split(' ').filter(word => word.length > 0).length
+  const caracteres = redacao.length
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -135,27 +88,60 @@ Portanto, a democratização do acesso ao cinema no Brasil requer ações coorde
                 </Button>
               </Link>
               <div className="flex items-center space-x-2">
-                <PenTool className="h-6 w-6 text-purple-600" />
-                <h1 className="text-xl font-bold text-gray-900">Editor de Redação</h1>
+                <FileText className="h-8 w-8 text-purple-600" />
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                  Editor de Redação
+                </h1>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <Brain className="h-5 w-5 text-purple-600" />
-              <span className="text-sm text-gray-600">Correção por IA</span>
-            </div>
+            <Button 
+              onClick={handleCorrigir}
+              disabled={!redacao.trim() || isLoading}
+              className="bg-gradient-to-r from-purple-600 to-blue-600"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Corrigindo...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Correção por IA
+                </>
+              )}
+            </Button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Erro */}
+        {erro && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{erro}</AlertDescription>
+          </Alert>
+        )}
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="escrever">Escrever</TabsTrigger>
-            <TabsTrigger value="upload">Upload/OCR</TabsTrigger>
-            <TabsTrigger value="resultado" disabled={!result}>Resultado</TabsTrigger>
+            <TabsTrigger value="escrever" className="flex items-center space-x-2">
+              <FileText className="h-4 w-4" />
+              <span>Escrever</span>
+            </TabsTrigger>
+            <TabsTrigger value="upload" className="flex items-center space-x-2">
+              <Upload className="h-4 w-4" />
+              <span>Upload/OCR</span>
+            </TabsTrigger>
+            <TabsTrigger value="resultado" className="flex items-center space-x-2" disabled={!correcaoAtual}>
+              <BarChart3 className="h-4 w-4" />
+              <span>Resultado</span>
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="escrever" className="space-y-6">
+          {/* Tab: Escrever */}
+          <TabsContent value="escrever">
             <Card>
               <CardHeader>
                 <CardTitle>Nova Redação</CardTitle>
@@ -164,45 +150,72 @@ Portanto, a democratização do acesso ao cinema no Brasil requer ações coorde
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="tema">Tema da Redação</Label>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Tema da Redação
+                  </label>
                   <Input
-                    id="tema"
                     placeholder="Ex: A democratização do acesso ao cinema no Brasil"
                     value={tema}
                     onChange={(e) => setTema(e.target.value)}
+                    disabled={isLoading}
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="texto">Sua Redação</Label>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Sua Redação
+                  </label>
                   <Textarea
-                    id="texto"
-                    placeholder="Comece escrevendo sua redação aqui..."
-                    value={texto}
-                    onChange={(e) => setTexto(e.target.value)}
-                    className="min-h-[400px] font-mono text-sm leading-relaxed"
+                    placeholder="Comece escrevendo sua redação aqui...
+
+Dica: Uma boa redação ENEM tem:
+• Introdução com contextualização e tese
+• Desenvolvimento com argumentos e repertório
+• Conclusão com proposta de intervenção completa
+• Entre 200-300 palavras
+• Linguagem formal"
+                    value={redacao}
+                    onChange={(e) => setRedacao(e.target.value)}
+                    className="min-h-[400px] resize-none"
+                    disabled={isLoading}
                   />
-                  <div className="flex justify-between text-sm text-gray-500">
-                    <span>{texto.length} caracteres</span>
-                    <span>~{Math.round(texto.split(' ').length)} palavras</span>
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                  <div className="text-gray-600">
+                    {caracteres} caracteres • {palavras} palavras
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {palavras < 200 && (
+                      <Badge variant="outline" className="text-red-600">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Mínimo: 200 palavras
+                      </Badge>
+                    )}
+                    {palavras >= 200 && palavras <= 300 && (
+                      <Badge variant="outline" className="text-green-600">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Tamanho ideal
+                      </Badge>
+                    )}
                   </div>
                 </div>
 
                 <Button 
-                  onClick={corrigirRedacao}
-                  disabled={!texto.trim() || isProcessing}
-                  className="w-full"
+                  onClick={handleCorrigir}
+                  disabled={!redacao.trim() || isLoading}
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600"
                   size="lg"
                 >
-                  {isProcessing ? (
+                  {isLoading ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                       Corrigindo com IA...
                     </>
                   ) : (
                     <>
-                      <Brain className="h-4 w-4 mr-2" />
+                      <Send className="h-5 w-5 mr-2" />
                       Corrigir Redação
                     </>
                   )}
@@ -211,139 +224,79 @@ Portanto, a democratização do acesso ao cinema no Brasil requer ações coorde
             </Card>
           </TabsContent>
 
-          <TabsContent value="upload" className="space-y-6">
+          {/* Tab: Upload/OCR */}
+          <TabsContent value="upload">
             <Card>
               <CardHeader>
-                <CardTitle>Upload de Redação Manuscrita</CardTitle>
+                <CardTitle>Upload/OCR</CardTitle>
                 <CardDescription>
-                  Envie uma foto da sua redação para conversão automática via OCR
+                  Envie uma foto da sua redação para extrair o texto automaticamente
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div
-                  {...getRootProps()}
-                  className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                    isDragActive 
-                      ? 'border-purple-400 bg-purple-50' 
-                      : 'border-gray-300 hover:border-purple-400'
-                  }`}
-                >
-                  <input {...getInputProps()} />
-                  {ocrProcessing ? (
-                    <div className="space-y-4">
-                      <Loader2 className="h-12 w-12 mx-auto text-purple-600 animate-spin" />
-                      <div>
-                        <p className="text-lg font-medium">Processando imagem...</p>
-                        <p className="text-gray-600">Convertendo texto manuscrito</p>
-                      </div>
-                      <Progress value={66} className="w-full max-w-xs mx-auto" />
-                    </div>
-                  ) : uploadedImage ? (
-                    <div className="space-y-4">
-                      <CheckCircle className="h-12 w-12 mx-auto text-green-600" />
-                      <div>
-                        <p className="text-lg font-medium text-green-700">Imagem processada!</p>
-                        <p className="text-gray-600">Texto extraído com sucesso</p>
-                      </div>
-                      <img 
-                        src={uploadedImage} 
-                        alt="Redação enviada" 
-                        className="max-w-xs mx-auto rounded-lg shadow-md"
-                      />
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <Camera className="h-12 w-12 mx-auto text-gray-400" />
-                      <div>
-                        <p className="text-lg font-medium">
-                          {isDragActive ? 'Solte a imagem aqui' : 'Clique ou arraste uma imagem'}
-                        </p>
-                        <p className="text-gray-600">PNG, JPG até 10MB</p>
-                      </div>
-                    </div>
-                  )}
+              <CardContent>
+                <div className="text-center py-12">
+                  <Upload className="h-16 w-16 text-blue-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">
+                    Funcionalidade em Desenvolvimento
+                  </h3>
+                  <p className="text-gray-600 mb-4">
+                    Em breve você poderá enviar fotos das suas redações!
+                  </p>
+                  <Button onClick={() => setActiveTab('escrever')}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Escrever Agora
+                  </Button>
                 </div>
-
-                {uploadedImage && !ocrProcessing && (
-                  <Alert>
-                    <CheckCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Texto extraído com sucesso! Vá para a aba "Escrever" para revisar e corrigir.
-                    </AlertDescription>
-                  </Alert>
-                )}
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="resultado" className="space-y-6">
-            {result && (
-              <>
-                {/* Nota Geral */}
-                <Card className="bg-gradient-to-r from-blue-50 to-purple-50">
-                  <CardContent className="p-8 text-center">
-                    <div className="space-y-4">
-                      <div className="text-6xl font-bold text-blue-600">
-                        {formatScore(result.notaTotal)}
+          {/* Tab: Resultado */}
+          <TabsContent value="resultado">
+            {correcaoAtual && (
+              <div className="space-y-6">
+                {/* Notas por Competência */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <BarChart3 className="h-5 w-5 text-purple-600" />
+                        <span>Resultado da Correção</span>
                       </div>
-                      <div className="space-y-2">
-                        <p className="text-xl font-semibold text-gray-800">Nota Final</p>
-                        <Badge className={getGradeColor(result.notaTotal)} variant="secondary">
-                          {result.tagEstilo}
-                        </Badge>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-purple-600">
+                          {correcaoAtual.nota_total}
+                          <span className="text-sm text-gray-500">/1000</span>
+                        </div>
+                        <p className="text-sm text-gray-600">Nota Total</p>
                       </div>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                      {Object.entries(correcaoAtual.notas_competencias).map(([comp, nota]) => {
+                        const { icon: StatusIcon, color, label } = getNotaStatus(nota)
+                        const porcentagem = (nota / 200) * 100
+                        
+                        return (
+                          <div key={comp} className="text-center space-y-2">
+                            <div className="flex items-center justify-center space-x-1">
+                              <span className="font-bold text-lg">{comp}</span>
+                              <StatusIcon className={`h-4 w-4 ${color}`} />
+                            </div>
+                            <div className={`text-2xl font-bold ${getNotaColor(nota)}`}>
+                              {nota}
+                            </div>
+                            <Progress value={porcentagem} className="h-2" />
+                            <p className="text-xs text-gray-600">{label}</p>
+                          </div>
+                        )
+                      })}
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Competências */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Avaliação por Competências</CardTitle>
-                    <CardDescription>
-                      Análise detalhada segundo os critérios do ENEM
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {result.competencias.map((comp) => (
-                      <div key={comp.id} className="space-y-3">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-sm">
-                              Competência {comp.id}
-                            </h4>
-                            <p className="text-sm text-gray-600 mt-1">
-                              {comp.nome}
-                            </p>
-                          </div>
-                          <Badge className={getGradeColor(comp.nota)}>
-                            {comp.nota}/200
-                          </Badge>
-                        </div>
-                        
-                        <div className="bg-gray-50 p-4 rounded-lg">
-                          <p className="text-sm">{comp.feedback}</p>
-                          {comp.trechosExemplos.length > 0 && (
-                            <div className="mt-3">
-                              <p className="text-xs font-medium text-gray-700 mb-2">
-                                Exemplos identificados:
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {comp.trechosExemplos.map((exemplo, idx) => (
-                                  <Badge key={idx} variant="outline" className="text-xs">
-                                    {exemplo}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-
-                {/* Feedback Geral */}
+                {/* Comentários */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
@@ -352,64 +305,112 @@ Portanto, a democratização do acesso ao cinema no Brasil requer ações coorde
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <p className="text-sm leading-relaxed">{result.feedback}</p>
-                    </div>
+                    {correcaoAtual.comentarios.map((comentario, index) => {
+                      const isError = comentario.includes('🔴')
+                      const isWarning = comentario.includes('🟡')
+                      const isSuccess = comentario.includes('🟢')
+                      
+                      let bgColor = 'bg-blue-50 border-blue-200'
+                      if (isError) bgColor = 'bg-red-50 border-red-200'
+                      else if (isWarning) bgColor = 'bg-yellow-50 border-yellow-200'
+                      else if (isSuccess) bgColor = 'bg-green-50 border-green-200'
+                      
+                      return (
+                        <div key={index} className={`p-3 rounded-lg border ${bgColor}`}>
+                          <p className="text-sm">{comentario}</p>
+                        </div>
+                      )
+                    })}
+                  </CardContent>
+                </Card>
 
-                    <div className="space-y-3">
-                      <h4 className="font-semibold">Dicas de Repertório Sociocultural</h4>
+                {/* Erros Detectados */}
+                {correcaoAtual.erros_detectados.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-red-700">🔍 Erros Identificados</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2">
+                        {correcaoAtual.erros_detectados.map((erro, index) => (
+                          <Badge key={index} variant="destructive" className="text-xs">
+                            {erro}
+                          </Badge>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Dicas Personalizadas */}
+                {correcaoAtual.dicas_personalizadas.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-blue-700">💡 Dicas Personalizadas</CardTitle>
+                    </CardHeader>
+                    <CardContent>
                       <ul className="space-y-2">
-                        {result.dicasRepertorio.map((dica, index) => (
+                        {correcaoAtual.dicas_personalizadas.map((dica, index) => (
                           <li key={index} className="flex items-start space-x-2">
-                            <div className="w-2 h-2 bg-purple-600 rounded-full mt-2 flex-shrink-0" />
+                            <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
                             <span className="text-sm">{dica}</span>
                           </li>
                         ))}
                       </ul>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                )}
 
-                {/* Texto Revisado */}
+                {/* Texto Corrigido */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Eye className="h-5 w-5 text-green-600" />
-                      <span>Versão Revisada</span>
+                    <CardTitle className="flex items-center justify-between">
+                      <span>📝 Versão Corrigida</span>
+                      <div className="flex space-x-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setMostrarTextoCorrigido(!mostrarTextoCorrigido)}
+                        >
+                          {mostrarTextoCorrigido ? 'Ocultar' : 'Mostrar'}
+                        </Button>
+                        {mostrarTextoCorrigido && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={copiarTextoCorrigido}
+                            className="flex items-center space-x-1"
+                          >
+                            <Copy className="h-3 w-3" />
+                            <span>Copiar</span>
+                          </Button>
+                        )}
+                      </div>
                     </CardTitle>
-                    <CardDescription>
-                      Seu texto com sugestões de melhorias destacadas
-                    </CardDescription>
                   </CardHeader>
-                  <CardContent>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <pre className="whitespace-pre-wrap text-sm leading-relaxed font-mono">
-                        {result.textoRevisado}
-                      </pre>
-                    </div>
-                  </CardContent>
+                  {mostrarTextoCorrigido && (
+                    <CardContent>
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <p className="text-sm whitespace-pre-line leading-relaxed">
+                          {correcaoAtual.texto_corrigido}
+                        </p>
+                      </div>
+                    </CardContent>
+                  )}
                 </Card>
 
-                {/* Ações */}
-                <div className="flex flex-wrap gap-4">
-                  <Button onClick={() => setActiveTab('escrever')}>
-                    <PenTool className="h-4 w-4 mr-2" />
+                {/* Botão Nova Redação */}
+                <div className="flex justify-center">
+                  <Button 
+                    onClick={handleNovaRedacao}
+                    size="lg"
+                    className="bg-gradient-to-r from-purple-600 to-blue-600"
+                  >
+                    <FileText className="h-5 w-5 mr-2" />
                     Escrever Nova Redação
                   </Button>
-                  
-                  <Button variant="outline">
-                    <Download className="h-4 w-4 mr-2" />
-                    Baixar Relatório
-                  </Button>
-                  
-                  <Link href="/biblioteca">
-                    <Button variant="outline">
-                      <FileText className="h-4 w-4 mr-2" />
-                      Ver Redações Nota 1000
-                    </Button>
-                  </Link>
                 </div>
-              </>
+              </div>
             )}
           </TabsContent>
         </Tabs>
