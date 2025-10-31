@@ -30,6 +30,36 @@ interface Message {
   timestamp: Date
 }
 
+// Componente para renderizar markdown/texto formatado
+const MessageContent = ({ content }: { content: string }) => {
+  const processContent = (text: string) => {
+    let processed = text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/##\s*(.*?)(\n|$)/g, '<h3 class="text-base font-bold mt-3 mb-2">$1</h3>')
+      .replace(/###\s*(.*?)(\n|$)/g, '<h4 class="text-sm font-semibold mt-2 mb-1">$1</h4>')
+    
+    processed = processed.replace(/^(\d+)\.\s+(.*)$/gm, '<li class="ml-4 mb-1">$2</li>')
+    processed = processed.replace(/^[•\-]\s+(.*)$/gm, '<li class="ml-4 mb-1">$1</li>')
+    
+    if (processed.includes('<li')) {
+      processed = processed.replace(/(<li.*?<\/li>)/gs, '<ul class="list-disc ml-4 my-2 space-y-1">$1</ul>')
+    }
+    
+    processed = processed.replace(/\n\n/g, '</p><p class="mb-2">')
+    processed = `<p class="mb-2">${processed}</p>`
+    
+    return processed
+  }
+
+  return (
+    <div 
+      className="prose prose-sm max-w-none text-sm leading-relaxed"
+      dangerouslySetInnerHTML={{ __html: processContent(content) }}
+    />
+  )
+}
+
 export default function MentorPage() {
   const [activeTab, setActiveTab] = useState('chat')
   const [mounted, setMounted] = useState(false)
@@ -37,18 +67,22 @@ export default function MentorPage() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [erro, setErro] = useState('')
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   useEffect(() => {
     setMounted(true)
-    // Mensagem inicial de boas-vindas
     setMessages([{
       role: 'assistant',
-      content: `Olá! 👋 Sou seu Mentor IA especializado em **redações ENEM**!
+      content: `Olá! 👋 Sou seu Mentor IA especializado em redações ENEM!
 
 Como posso te ajudar hoje?
 
-📝 **Posso te auxiliar com:**
+## Posso te auxiliar com:
+
 • Estrutura de redações dissertativo-argumentativas
 • Análise das 5 competências do ENEM
 • Dicas de argumentação e repertório sociocultural
@@ -57,7 +91,8 @@ Como posso te ajudar hoje?
 • Correção de textos e exemplos
 • Temas atuais e como desenvolvê-los
 
-💡 **Exemplos de perguntas:**
+## Exemplos de perguntas:
+
 - "Como fazer uma boa introdução?"
 - "O que é repertório sociocultural?"
 - "Me explique a competência 5"
@@ -70,10 +105,8 @@ Como posso te ajudar hoje?
   }, [])
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [messages])
+    scrollToBottom()
+  }, [messages, isLoading])
 
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return
@@ -113,9 +146,12 @@ INSTRUÇÕES:
 - Use exemplos quando possível
 - Se for sobre redação ENEM, mencione as competências relevantes
 - Use emojis para deixar mais amigável
-- Seja breve mas completo (máximo 300 palavras)
+- Seja breve mas completo (máximo 400 palavras)
 - Se o aluno pedir análise de texto, seja detalhado
 - Se for dúvida sobre ENEM geral, responda com base no edital oficial
+- Use formatação markdown quando necessário (## para títulos, - para listas, ** para negrito)
+- Separe parágrafos com linha em branco
+- Para listas, use hífen (-) ou números (1., 2., etc)
 
 RESPONDA DE FORMA CLARA E AMIGÁVEL:`
               }]
@@ -226,90 +262,97 @@ RESPONDA DE FORMA CLARA E AMIGÁVEL:`
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="chat">
-            <Card className="h-[calc(100vh-16rem)]">
-              <CardContent className="p-0 h-full flex flex-col">
-                {/* Área de mensagens */}
-                <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-                  <div className="space-y-4">
-                    {messages.map((message, index) => (
+          <TabsContent value="chat" className="mt-0">
+            <Card className="border-0 shadow-lg">
+              <div className="flex flex-col h-[calc(100vh-16rem)]">
+                {/* Área de mensagens com scroll próprio */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {messages.map((message, index) => (
+                    <div
+                      key={index}
+                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
                       <div
-                        key={index}
-                        className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                        className={`flex gap-3 max-w-[85%] ${
+                          message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
+                        }`}
                       >
                         <div
-                          className={`flex gap-3 max-w-[80%] ${
-                            message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
+                          className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                            message.role === 'user'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-purple-600 text-white'
                           }`}
                         >
-                          <div
-                            className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                              message.role === 'user'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-purple-600 text-white'
-                            }`}
-                          >
-                            {message.role === 'user' ? (
-                              <User className="w-5 h-5" />
-                            ) : (
-                              <Bot className="w-5 h-5" />
-                            )}
-                          </div>
+                          {message.role === 'user' ? (
+                            <User className="w-5 h-5" />
+                          ) : (
+                            <Bot className="w-5 h-5" />
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1">
                           <div
                             className={`rounded-2xl px-4 py-3 ${
                               message.role === 'user'
                                 ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 text-gray-900'
+                                : 'bg-white border border-gray-200 text-gray-900 shadow-sm'
                             }`}
                           >
-                            <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                              {message.content}
-                            </p>
-                            <p
-                              className={`text-xs mt-1 ${
-                                message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
-                              }`}
-                            >
-                              {message.timestamp.toLocaleTimeString('pt-BR', {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </p>
+                            {message.role === 'user' ? (
+                              <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                                {message.content}
+                              </p>
+                            ) : (
+                              <MessageContent content={message.content} />
+                            )}
+                          </div>
+                          <p
+                            className={`text-xs px-2 ${
+                              message.role === 'user' ? 'text-right text-gray-500' : 'text-left text-gray-500'
+                            }`}
+                          >
+                            {message.timestamp.toLocaleTimeString('pt-BR', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {isLoading && (
+                    <div className="flex justify-start">
+                      <div className="flex gap-3 max-w-[85%]">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center">
+                          <Bot className="w-5 h-5" />
+                        </div>
+                        <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
+                          <div className="flex gap-1">
+                            <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" />
+                            <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                            <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
                           </div>
                         </div>
                       </div>
-                    ))}
-                    
-                    {isLoading && (
-                      <div className="flex justify-start">
-                        <div className="flex gap-3 max-w-[80%]">
-                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center">
-                            <Bot className="w-5 h-5" />
-                          </div>
-                          <div className="bg-gray-100 rounded-2xl px-4 py-3">
-                            <div className="flex gap-1">
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100" />
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200" />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </ScrollArea>
+                    </div>
+                  )}
+                  
+                  {/* Elemento invisível para scroll automático */}
+                  <div ref={messagesEndRef} />
+                </div>
 
                 {/* Sugestões rápidas */}
                 {messages.length <= 1 && (
-                  <div className="px-4 py-2 border-t">
-                    <p className="text-xs text-gray-500 mb-2">💡 Sugestões de perguntas:</p>
+                  <div className="px-4 py-3 border-t bg-gray-50">
+                    <p className="text-xs font-medium text-gray-600 mb-2">💡 Sugestões de perguntas:</p>
                     <div className="flex flex-wrap gap-2">
                       {sugestoesPergunta.map((sugestao, index) => (
                         <Button
                           key={index}
                           variant="outline"
                           size="sm"
-                          className="text-xs"
+                          className="text-xs hover:bg-purple-50 hover:border-purple-300"
                           onClick={() => handleSugestao(sugestao)}
                         >
                           {sugestao}
@@ -327,7 +370,7 @@ RESPONDA DE FORMA CLARA E AMIGÁVEL:`
                   </Alert>
                 )}
 
-                {/* Input */}
+                {/* Input fixo no bottom */}
                 <div className="p-4 border-t bg-white">
                   <div className="flex gap-2">
                     <Input
@@ -342,6 +385,7 @@ RESPONDA DE FORMA CLARA E AMIGÁVEL:`
                       onClick={handleSendMessage}
                       disabled={isLoading || !input.trim()}
                       size="icon"
+                      className="bg-purple-600 hover:bg-purple-700"
                     >
                       {isLoading ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -351,7 +395,7 @@ RESPONDA DE FORMA CLARA E AMIGÁVEL:`
                     </Button>
                   </div>
                 </div>
-              </CardContent>
+              </div>
             </Card>
           </TabsContent>
 
