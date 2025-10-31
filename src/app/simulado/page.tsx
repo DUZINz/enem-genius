@@ -27,6 +27,7 @@ import { useSimulado } from '@/hooks/useSimulado'
 import type { SimuladoGerado, RespostaAluno, CorrecaoSimulado, QuestaoSimulado } from '@/lib/types/simulado'
 import { Checkbox } from '@/components/ui/checkbox'
 import Link from 'next/link'
+import { useUserStats } from '@/hooks/useUserStats'
 
 export default function SimuladoPage() {
   const [activeTab, setActiveTab] = useState('config')
@@ -39,6 +40,7 @@ export default function SimuladoPage() {
   const [iniciado, setIniciado] = useState(false)
 
   const { gerarSimulado, corrigirSimulado, isLoading, erro } = useSimulado()
+  const { registrarSimulado } = useUserStats()
 
   // Timer
   useState(() => {
@@ -96,6 +98,22 @@ export default function SimuladoPage() {
     setAreasEscolhidas(prev => 
       prev.includes(area) ? prev.filter(a => a !== area) : [...prev, area]
     )
+  }
+
+  const handleFinalizarSimulado = async () => {
+    if (!simuladoAtual) return
+
+    // Calcular nota final (exemplo: soma das notas das questões)
+    const notaFinal = correcao.acertos * 10 // Apenas um exemplo, ajuste conforme a lógica real
+
+    // 🎯 REGISTRAR NO SISTEMA GLOBAL
+    const tempoTotal = Math.floor((Date.now().getTime() - tempoDecorrido) / 1000 / 60) // em minutos
+    const resultado = registrarSimulado(notaFinal, tempoTotal)
+    
+    alert(`🎉 Simulado concluído!\n\nNota: ${notaFinal}\n+${resultado.xpGanho} XP`)
+    
+    // Navegar para resultado
+    // router.push(`/simulado/resultado?nota=${notaFinal}`)
   }
 
   return (

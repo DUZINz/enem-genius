@@ -13,6 +13,7 @@ import { Separator } from '@/components/ui/separator'
 import { AlertCircle, CheckCircle2, Lightbulb, FileText, Loader2, AlertTriangle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useMentor } from '@/hooks/useMentor'
+import { useUserStats } from '@/hooks/useUserStats'
 import type { CorrecaoRedacao as CorrecaoRedacaoType } from '@/lib/types/mentor'
 
 export default function RedacaoPage() {
@@ -23,6 +24,7 @@ export default function RedacaoPage() {
   const [mostrarTextoCorrigido, setMostrarTextoCorrigido] = useState(false)
   
   const { corrigirRedacao, isLoading, erro } = useMentor()
+  const { registrarRedacao } = useUserStats()
 
   const handleCorrigir = async () => {
     if (!redacao.trim() || redacao.length < 50) {
@@ -30,10 +32,17 @@ export default function RedacaoPage() {
       return
     }
 
-    const resultado = await corrigirRedacao(redacao)
-    if (resultado) {
-      setCorrecaoAtual(resultado)
+    const correcao = await corrigirRedacao(redacao)
+    if (correcao) {
+      setCorrecaoAtual(correcao)
       setActiveTab('resultado')
+
+      // 🎯 REGISTRAR NO SISTEMA GLOBAL - CORRIGIDO
+      const tempoTotal = 60 // tempo estimado de redação
+      const notaTotal = correcao.nota_total // <-- USA A NOTA TOTAL DIRETAMENTE
+      const resultado = registrarRedacao(notaTotal, tempoTotal)
+      
+      alert(`📝 Redação corrigida!\n\nNota: ${notaTotal}/1000\n+${resultado.xpGanho} XP`)
     }
   }
 
