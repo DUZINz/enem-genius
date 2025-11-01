@@ -63,18 +63,88 @@ function RedacaoContent() {
   const [mostrarCorrecao, setMostrarCorrecao] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
+  // ✅ TEMAS EXPANDIDOS - REAIS DO ENEM + GENÉRICOS
   const temasDisponiveis = [
-    'A importância da educação digital no século XXI',
-    'Desafios da mobilidade urbana sustentável no Brasil',
-    'O papel da tecnologia na preservação ambiental',
-    'Saúde mental dos jovens na era digital',
-    'Desigualdade social e acesso à educação no Brasil',
-    'Fake news e seus impactos na democracia',
-    'Valorização da cultura brasileira',
-    'Combate ao trabalho infantil no Brasil'
+    // 🎯 TEMAS REAIS DO ENEM (2016-2022)
+    { 
+      texto: 'Desafios para a valorização de comunidades e povos tradicionais no Brasil',
+      ano: '2022',
+      isReal: true
+    },
+    { 
+      texto: 'Invisibilidade e registro civil: garantia de acesso à cidadania no Brasil',
+      ano: '2021',
+      isReal: true
+    },
+    { 
+      texto: 'O estigma associado às doenças mentais na sociedade brasileira',
+      ano: '2020',
+      isReal: true
+    },
+    { 
+      texto: 'Democratização do acesso ao cinema no Brasil',
+      ano: '2019',
+      isReal: true
+    },
+    { 
+      texto: 'Manipulação do comportamento do usuário pelo controle de dados na internet',
+      ano: '2018',
+      isReal: true
+    },
+    { 
+      texto: 'Desafios para a formação educacional de surdos no Brasil',
+      ano: '2017',
+      isReal: true
+    },
+    { 
+      texto: 'Caminhos para combater a intolerância religiosa no Brasil',
+      ano: '2016',
+      isReal: true
+    },
+    
+    // 📚 TEMAS GENÉRICOS (Simulação)
+    { 
+      texto: 'A importância da educação digital no século XXI',
+      ano: null,
+      isReal: false
+    },
+    { 
+      texto: 'Desafios da mobilidade urbana sustentável no Brasil',
+      ano: null,
+      isReal: false
+    },
+    { 
+      texto: 'O papel da tecnologia na preservação ambiental',
+      ano: null,
+      isReal: false
+    },
+    { 
+      texto: 'Saúde mental dos jovens na era digital',
+      ano: null,
+      isReal: false
+    },
+    { 
+      texto: 'Desigualdade social e acesso à educação no Brasil',
+      ano: null,
+      isReal: false
+    },
+    { 
+      texto: 'Fake news e seus impactos na democracia brasileira',
+      ano: null,
+      isReal: false
+    },
+    { 
+      texto: 'Valorização da cultura e identidade brasileira',
+      ano: null,
+      isReal: false
+    },
+    { 
+      texto: 'Combate ao trabalho infantil no Brasil',
+      ano: null,
+      isReal: false
+    }
   ]
 
-  // Carregar redações do Firebase
   useEffect(() => {
     const carregarRedacoes = async () => {
       if (!user) return
@@ -92,7 +162,6 @@ function RedacaoContent() {
           redacoesData.push({ id: doc.id, ...doc.data() } as Redacao)
         })
 
-        // Ordenar manualmente
         redacoesData.sort((a, b) => 
           new Date(b.dataCriacao).getTime() - new Date(a.dataCriacao).getTime()
         )
@@ -149,9 +218,12 @@ function RedacaoContent() {
       const resultado = await response.json()
       console.log('✅ Correção recebida:', resultado)
 
-      // ✅ VALIDAÇÃO ADICIONAL
-      if (!resultado.notaFinal || !resultado.competencias || !Array.isArray(resultado.competencias)) {
-        console.error('❌ Resultado inválido:', resultado)
+      if (typeof resultado.notaFinal !== 'number' || !Array.isArray(resultado.competencias)) {
+        console.error('❌ Resultado inválido:', {
+          notaFinal: resultado.notaFinal,
+          tipoNotaFinal: typeof resultado.notaFinal,
+          competencias: Array.isArray(resultado.competencias)
+        })
         throw new Error('Resposta da API está incompleta')
       }
 
@@ -160,11 +232,10 @@ function RedacaoContent() {
         throw new Error('Correção incompleta - tente novamente')
       }
 
-      // ✅ GARANTIR QUE TODOS OS CAMPOS EXISTEM
       const competenciasValidas = resultado.competencias.map((comp: any) => ({
         numero: comp.numero || 0,
         titulo: comp.titulo || 'Competência',
-        nota: comp.nota || 0,
+        nota: typeof comp.nota === 'number' ? comp.nota : 0,
         feedback: comp.feedback || 'Feedback não disponível'
       }))
 
@@ -176,16 +247,19 @@ function RedacaoContent() {
         ? resultado.pontosAMelhorarGerais
         : ['Análise em andamento']
 
-      // Salvar redação no Firebase
+      const sugestoesValidas = typeof resultado.sugestoesGerais === 'string'
+        ? resultado.sugestoesGerais
+        : 'Continue praticando!'
+
       const novaRedacao: Omit<Redacao, 'id'> = {
         userId: user.uid,
         tema,
         texto,
-        notaFinal: resultado.notaFinal || 0,
+        notaFinal: resultado.notaFinal,
         competencias: competenciasValidas,
         pontosFortesGerais: pontosFortesValidos,
         pontosAMelhorarGerais: pontosAMelhorarValidos,
-        sugestoesGerais: resultado.sugestoesGerais || 'Continue praticando!',
+        sugestoesGerais: sugestoesValidas,
         status: 'corrigida',
         dataCriacao: new Date().toISOString(),
         dataCorrecao: new Date().toISOString()
@@ -204,7 +278,6 @@ function RedacaoContent() {
       setRedacaoAtual(redacaoComId)
       setMostrarCorrecao(true)
 
-      // Atualizar stats do usuário
       if (userProfile) {
         const novosStats = {
           ...userProfile.stats,
@@ -220,7 +293,6 @@ function RedacaoContent() {
         await atualizarStats(novosStats)
       }
 
-      // Recarregar redações
       const q = query(collection(db, 'redacoes'), where('userId', '==', user.uid))
       const querySnapshot = await getDocs(q)
       const redacoesData: Redacao[] = []
@@ -275,7 +347,6 @@ function RedacaoContent() {
   if (mostrarCorrecao && redacaoAtual) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
-        {/* Header */}
         <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
@@ -288,7 +359,6 @@ function RedacaoContent() {
                   <Award className="h-5 w-5 mr-2" />
                   {redacaoAtual.notaFinal}/1000
                 </Badge>
-                {/* ✅ BOTÃO VOLTAR */}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -304,7 +374,6 @@ function RedacaoContent() {
         </header>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-          {/* Competências */}
           <Card>
             <CardHeader>
               <CardTitle>Avaliação por Competências</CardTitle>
@@ -328,47 +397,48 @@ function RedacaoContent() {
             </CardContent>
           </Card>
 
-          {/* Pontos Fortes */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-green-600">
-                <CheckCircle2 className="h-5 w-5" />
-                Pontos Fortes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {redacaoAtual.pontosFortesGerais.map((ponto, index) => (
-                  <li key={index} className="flex items-start gap-2">
-                    <span className="text-green-600 mt-1">✓</span>
-                    <span className="text-sm">{ponto}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          {redacaoAtual.pontosFortesGerais.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-green-600">
+                  <CheckCircle2 className="h-5 w-5" />
+                  Pontos Fortes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {redacaoAtual.pontosFortesGerais.map((ponto, index) => (
+                    <li key={index} className="flex items-start gap-2">
+                      <span className="text-green-600 mt-1">✓</span>
+                      <span className="text-sm">{ponto}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Pontos a Melhorar */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-orange-600">
-                <AlertCircle className="h-5 w-5" />
-                Pontos a Melhorar
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {redacaoAtual.pontosAMelhorarGerais.map((ponto, index) => (
-                  <li key={index} className="flex items-start gap-2">
-                    <span className="text-orange-600 mt-1">⚠</span>
-                    <span className="text-sm">{ponto}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          {redacaoAtual.pontosAMelhorarGerais.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-orange-600">
+                  <AlertCircle className="h-5 w-5" />
+                  Pontos a Melhorar
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {redacaoAtual.pontosAMelhorarGerais.map((ponto, index) => (
+                    <li key={index} className="flex items-start gap-2">
+                      <span className="text-orange-600 mt-1">⚠</span>
+                      <span className="text-sm">{ponto}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Sugestões */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-blue-600">
@@ -381,7 +451,6 @@ function RedacaoContent() {
             </CardContent>
           </Card>
 
-          {/* Botão Nova Redação */}
           <Button onClick={handleNovaRedacao} className="w-full h-12 text-lg">
             <FileText className="h-5 w-5 mr-2" />
             Escrever Nova Redação
@@ -393,12 +462,10 @@ function RedacaoContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
-      {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              {/* ✅ BOTÃO VOLTAR */}
               <Button
                 variant="ghost"
                 size="icon"
@@ -417,7 +484,6 @@ function RedacaoContent() {
                 </div>
               </div>
             </div>
-            {/* ✅ BOTÃO HOME */}
             <Button
               variant="outline"
               onClick={() => router.push('/')}
@@ -452,24 +518,38 @@ function RedacaoContent() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Tema */}
                 <div className="space-y-2">
-                  <Label>Escolha um Tema</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Escolha um Tema</Label>
+                    <Badge variant="outline" className="text-xs">
+                      {temasDisponiveis.filter(t => t.isReal).length} temas reais do ENEM
+                    </Badge>
+                  </div>
                   <div className="grid grid-cols-1 gap-2">
                     {temasDisponiveis.map((temaItem, index) => (
                       <Button
                         key={index}
-                        variant={tema === temaItem ? 'default' : 'outline'}
-                        className="justify-start text-left h-auto py-3"
-                        onClick={() => setTema(temaItem)}
+                        variant={tema === temaItem.texto ? 'default' : 'outline'}
+                        className="justify-start text-left h-auto py-3 px-4"
+                        onClick={() => setTema(temaItem.texto)}
                       >
-                        {temaItem}
+                        <div className="flex items-start gap-2 w-full">
+                          {/* 🆕 BADGE PARA TEMAS REAIS DO ENEM */}
+                          {temaItem.isReal && (
+                            <Badge 
+                              variant="secondary" 
+                              className="shrink-0 bg-gradient-to-r from-blue-500 to-purple-500 text-white border-0"
+                            >
+                              ENEM {temaItem.ano}
+                            </Badge>
+                          )}
+                          <span className="flex-1">{temaItem.texto}</span>
+                        </div>
                       </Button>
                     ))}
                   </div>
                 </div>
 
-                {/* Editor */}
                 {tema && (
                   <div className="space-y-2">
                     <Label>Sua Redação</Label>
@@ -485,7 +565,6 @@ function RedacaoContent() {
                   </div>
                 )}
 
-                {/* Botão Corrigir */}
                 {tema && texto.trim().split(/\s+/).length >= 200 && (
                   <Button
                     onClick={handleCorrigir}

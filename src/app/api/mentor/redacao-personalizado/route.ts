@@ -87,7 +87,8 @@ REGRAS:
 - Responda APENAS o JSON, sem texto antes ou depois
 - Não use markdown
 - Use aspas duplas
-- Não deixe campos vazios`
+- Não deixe campos vazios
+- SEMPRE preencha os arrays pontosFortesGerais e pontosAMelhorarGerais`
 
     console.log('🤖 Enviando para Gemini 2.0 Flash...')
 
@@ -95,17 +96,14 @@ REGRAS:
     const responseText = result.response.text()
 
     console.log('📥 Resposta recebida do Gemini')
-    console.log('📄 Resposta completa:', responseText.substring(0, 500))
 
     // Limpar resposta
     let cleanedText = responseText.trim()
-    
-    // Remover markdown
     cleanedText = cleanedText.replace(/```json\s*/g, '')
     cleanedText = cleanedText.replace(/```\s*/g, '')
     cleanedText = cleanedText.trim()
 
-    console.log('🧹 Texto limpo:', cleanedText.substring(0, 200))
+    console.log('🧹 Texto limpo (primeiros 300 chars):', cleanedText.substring(0, 300))
 
     // Tentar parsear
     let correcao
@@ -114,9 +112,6 @@ REGRAS:
       console.log('✅ JSON parseado com sucesso')
     } catch (parseError) {
       console.error('❌ Erro ao parsear JSON:', parseError)
-      console.log('📄 Texto que falhou:', cleanedText)
-      
-      // Tentar extrair JSON válido
       const jsonMatch = cleanedText.match(/\{[\s\S]*\}/)
       if (jsonMatch) {
         console.log('🔍 Tentando extrair JSON...')
@@ -127,9 +122,13 @@ REGRAS:
       }
     }
 
-    // Validar estrutura
-    if (!correcao.notaFinal || !Array.isArray(correcao.competencias)) {
-      console.error('❌ Estrutura inválida:', correcao)
+    // ✅ VALIDAÇÃO CORRIGIDA - Aceitar nota 0
+    if (typeof correcao.notaFinal !== 'number' || !Array.isArray(correcao.competencias)) {
+      console.error('❌ Estrutura inválida:', {
+        notaFinal: correcao.notaFinal,
+        tipoNotaFinal: typeof correcao.notaFinal,
+        competencias: Array.isArray(correcao.competencias)
+      })
       throw new Error('Estrutura de correção inválida')
     }
 
@@ -141,24 +140,49 @@ REGRAS:
 
     // Validar cada competência
     for (const comp of correcao.competencias) {
-      if (!comp.numero || !comp.titulo || comp.nota === undefined || !comp.feedback) {
+      if (!comp.numero || !comp.titulo || typeof comp.nota !== 'number' || !comp.feedback) {
         console.error('❌ Competência inválida:', comp)
-        throw new Error('Competência com campos faltando')
+        throw new Error('Competência com campos faltando ou inválidos')
       }
     }
 
-    // Validar arrays
+    // ✅ GARANTIR ARRAYS VAZIOS EM VEZ DE UNDEFINED
     if (!Array.isArray(correcao.pontosFortesGerais)) {
+      console.log('⚠️ pontosFortesGerais inválido, criando array vazio')
       correcao.pontosFortesGerais = []
     }
+    
     if (!Array.isArray(correcao.pontosAMelhorarGerais)) {
+      console.log('⚠️ pontosAMelhorarGerais inválido, criando array vazio')
       correcao.pontosAMelhorarGerais = []
     }
-    if (!correcao.sugestoesGerais) {
-      correcao.sugestoesGerais = 'Continue praticando!'
+    
+    if (!correcao.sugestoesGerais || typeof correcao.sugestoesGerais !== 'string') {
+      console.log('⚠️ sugestoesGerais inválido, usando valor padrão')
+      correcao.sugestoesGerais = 'Continue praticando para melhorar suas habilidades de escrita.'
     }
 
-    console.log('✅ Correção finalizada. Nota:', correcao.notaFinal)
+    // ✅ SE ARRAYS ESTIVEREM VAZIOS E NOTA FOR 0, ADICIONAR MENSAGENS PADRÃO
+    if (correcao.notaFinal === 0) {
+      if (correcao.pontosFortesGerais.length === 0) {
+        correcao.pontosFortesGerais = ['Esta é uma oportunidade de aprendizado']
+      }
+      if (correcao.pontosAMelhorarGerais.length === 0) {
+        correcao.pontosAMelhorarGerais = [
+          'Desenvolver ideias relevantes sobre o tema',
+          'Construir uma argumentação coerente',
+          'Aplicar a norma padrão da língua portuguesa',
+          'Elaborar uma proposta de intervenção detalhada'
+        ]
+      }
+    }
+
+    console.log('✅ Correção finalizada:', {
+      notaFinal: correcao.notaFinal,
+      competencias: correcao.competencias.length,
+      pontosFortesGerais: correcao.pontosFortesGerais.length,
+      pontosAMelhorarGerais: correcao.pontosAMelhorarGerais.length
+    })
 
     return NextResponse.json(correcao)
   } catch (error: any) {
