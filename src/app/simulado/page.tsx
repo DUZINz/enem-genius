@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useAuth } from '@/hooks/useAuth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,7 +23,9 @@ import {
   Award,
   BookOpen,
   Target,
-  TrendingUp
+  TrendingUp,
+  Home,
+  ArrowLeft
 } from 'lucide-react'
 import { collection, addDoc, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -52,6 +55,7 @@ interface Simulado {
 }
 
 function SimuladoContent() {
+  const router = useRouter()
   const { user, userProfile, atualizarStats } = useAuth()
   const [simulados, setSimulados] = useState<Simulado[]>([])
   const [simuladoAtual, setSimuladoAtual] = useState<Simulado | null>(null)
@@ -107,7 +111,19 @@ function SimuladoContent() {
         const simuladosData: Simulado[] = []
 
         querySnapshot.forEach((doc) => {
-          simuladosData.push({ id: doc.id, ...doc.data() } as Simulado)
+          const data = doc.data()
+          
+          const disciplinasArray = Array.isArray(data.disciplinas) 
+            ? data.disciplinas 
+            : data.disciplina 
+            ? [data.disciplina] 
+            : ['Geral']
+          
+          simuladosData.push({ 
+            id: doc.id, 
+            ...data,
+            disciplinas: disciplinasArray
+          } as Simulado)
         })
 
         simuladosData.sort((a, b) => 
@@ -150,7 +166,6 @@ function SimuladoContent() {
         disciplinas.find(d => d.id === id)?.nome
       ).filter(Boolean)
 
-      // Gerar questões via API (uma por disciplina)
       const todasQuestoes: Questao[] = []
 
       for (const disciplina of disciplinasNomes) {
@@ -173,12 +188,10 @@ function SimuladoContent() {
         todasQuestoes.push(...questoes)
       }
 
-      // Limitar ao número exato de questões
       const questoesSelecionadas = todasQuestoes.slice(0, quantidadeQuestoes)
 
       console.log('✅ Total de questões geradas:', questoesSelecionadas.length)
 
-      // Criar simulado
       const novoSimulado: Simulado = {
         id: '',
         userId: user.uid,
@@ -227,7 +240,6 @@ function SimuladoContent() {
 
     setTimerAtivo(false)
 
-    // Calcular nota
     let acertos = 0
     simuladoAtual.questoes.forEach((questao, index) => {
       if (respostas[index] === questao.respostaCorreta) {
@@ -267,12 +279,22 @@ function SimuladoContent() {
 
       alert(`🎉 Simulado Finalizado!\n\n✅ Acertos: ${acertos}/${simuladoAtual.questoes.length}\n📊 Nota: ${nota}/1000\n⏱️ Tempo: ${Math.floor(tempoDecorrido / 60)}min ${tempoDecorrido % 60}s\n✨ +${nota >= 700 ? 150 : 100} XP`)
 
-      // Recarregar simulados
       const q = query(collection(db, 'simulados'), where('userId', '==', user.uid))
       const querySnapshot = await getDocs(q)
       const simuladosData: Simulado[] = []
       querySnapshot.forEach((doc) => {
-        simuladosData.push({ id: doc.id, ...doc.data() } as Simulado)
+        const data = doc.data()
+        const disciplinasArray = Array.isArray(data.disciplinas) 
+          ? data.disciplinas 
+          : data.disciplina 
+          ? [data.disciplina] 
+          : ['Geral']
+        
+        simuladosData.push({ 
+          id: doc.id, 
+          ...data,
+          disciplinas: disciplinasArray
+        } as Simulado)
       })
       
       simuladosData.sort((a, b) => 
@@ -306,15 +328,35 @@ function SimuladoContent() {
         <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
-              <div className="flex items-center space-x-2">
-                <Brain className="h-8 w-8 text-blue-600" />
-                <div>
-                  <h1 className="text-xl font-bold text-gray-900">Simulados IA</h1>
-                  <p className="text-xs text-muted-foreground">
-                    {userProfile?.stats.totalSimulados || 0} simulados realizados
-                  </p>
+              <div className="flex items-center space-x-4">
+                {/* ✅ BOTÃO VOLTAR */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => router.push('/')}
+                  className="hover:bg-gray-100"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <div className="flex items-center space-x-2">
+                  <Brain className="h-8 w-8 text-blue-600" />
+                  <div>
+                    <h1 className="text-xl font-bold text-gray-900">Simulados IA</h1>
+                    <p className="text-xs text-muted-foreground">
+                      {userProfile?.stats.totalSimulados || 0} simulados realizados
+                    </p>
+                  </div>
                 </div>
               </div>
+              {/* ✅ BOTÃO HOME (alternativa) */}
+              <Button
+                variant="outline"
+                onClick={() => router.push('/')}
+                className="gap-2"
+              >
+                <Home className="h-4 w-4" />
+                <span className="hidden sm:inline">Página Inicial</span>
+              </Button>
             </div>
           </div>
         </header>
@@ -430,8 +472,9 @@ function SimuladoContent() {
                     <CardContent className="pt-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            {simulado.disciplinas.map((disc, index) => (
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            {/* ✅ VALIDAÇÃO ADICIONADA */}
+                            {(simulado.disciplinas || ['Geral']).map((disc, index) => (
                               <Badge key={index} variant="outline">{disc}</Badge>
                             ))}
                           </div>
@@ -481,10 +524,30 @@ function SimuladoContent() {
               <Brain className="h-8 w-8 text-blue-600" />
               <h1 className="text-xl font-bold text-gray-900">Simulado em Andamento</h1>
             </div>
-            <Badge variant="outline" className="text-base px-3 py-1">
-              <Clock className="h-4 w-4 mr-2" />
-              {formatarTempo(tempoDecorrido)}
-            </Badge>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="text-base px-3 py-1">
+                <Clock className="h-4 w-4 mr-2" />
+                {formatarTempo(tempoDecorrido)}
+              </Badge>
+              {/* ✅ BOTÃO SAIR DO SIMULADO */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (confirm('Deseja realmente sair? O progresso será perdido.')) {
+                    setSimuladoAtual(null)
+                    setRespostas([])
+                    setQuestaoAtual(0)
+                    setTempoDecorrido(0)
+                    setTimerAtivo(false)
+                  }
+                }}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                Sair
+              </Button>
+            </div>
           </div>
         </div>
       </header>

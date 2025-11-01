@@ -1,71 +1,77 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useAuth } from '@/hooks/useAuth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
-  BookOpen,
-  Send,
-  Loader2,
-  CheckCircle2,
-  AlertCircle,
-  Lightbulb,
-  Star,
-  Brain,
+  Sparkles,
   FileText,
   Clock,
-  Target,
-  Award
+  Award,
+  TrendingUp,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  Send,
+  BookOpen,
+  Home,
+  ArrowLeft,
+  XCircle
 } from 'lucide-react'
-import { collection, addDoc, query, where, orderBy, getDocs, doc, updateDoc } from 'firebase/firestore'
+import { collection, addDoc, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+
+interface Competencia {
+  numero: number
+  titulo: string
+  nota: number
+  feedback: string
+}
 
 interface Redacao {
   id: string
   userId: string
   tema: string
   texto: string
-  nota?: number
-  feedback?: {
-    competencia1: { nota: number; comentario: string }
-    competencia2: { nota: number; comentario: string }
-    competencia3: { nota: number; comentario: string }
-    competencia4: { nota: number; comentario: string }
-    competencia5: { nota: number; comentario: string }
-    pontosFortes: string[]
-    pontosMelhoria: string[]
-    sugestoes: string[]
-  }
-  status: 'rascunho' | 'corrigindo' | 'corrigida'
+  notaFinal: number
+  competencias: Competencia[]
+  pontosFortesGerais: string[]
+  pontosAMelhorarGerais: string[]
+  sugestoesGerais: string
+  status: 'em-analise' | 'corrigida'
   dataCriacao: string
   dataCorrecao?: string
 }
 
 function RedacaoContent() {
+  const router = useRouter()
   const { user, userProfile, atualizarStats } = useAuth()
   const [redacoes, setRedacoes] = useState<Redacao[]>([])
   const [redacaoAtual, setRedacaoAtual] = useState<Redacao | null>(null)
   const [texto, setTexto] = useState('')
   const [tema, setTema] = useState('')
   const [isCorrigindo, setIsCorrigindo] = useState(false)
+  const [mostrarCorrecao, setMostrarCorrecao] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [erro, setErro] = useState('')
 
-  const temasSugeridos = [
-    'A importância da educação financeira nas escolas',
-    'Desafios da mobilidade urbana nas grandes cidades',
-    'O impacto das redes sociais na saúde mental dos jovens',
-    'A democratização do acesso à internet no Brasil',
-    'Combate à violência contra a mulher',
-    'Sustentabilidade e consumo consciente',
-    'O papel da tecnologia na educação pós-pandemia'
+  const temasDisponiveis = [
+    'A importância da educação digital no século XXI',
+    'Desafios da mobilidade urbana sustentável no Brasil',
+    'O papel da tecnologia na preservação ambiental',
+    'Saúde mental dos jovens na era digital',
+    'Desigualdade social e acesso à educação no Brasil',
+    'Fake news e seus impactos na democracia',
+    'Valorização da cultura brasileira',
+    'Combate ao trabalho infantil no Brasil'
   ]
 
   // Carregar redações do Firebase
@@ -74,11 +80,9 @@ function RedacaoContent() {
       if (!user) return
 
       try {
-        // ✅ VOLTAR A USAR orderBy (índice criado)
         const q = query(
           collection(db, 'redacoes'),
-          where('userId', '==', user.uid),
-          orderBy('dataCriacao', 'desc') // ✅ Pode usar agora
+          where('userId', '==', user.uid)
         )
 
         const querySnapshot = await getDocs(q)
@@ -87,6 +91,11 @@ function RedacaoContent() {
         querySnapshot.forEach((doc) => {
           redacoesData.push({ id: doc.id, ...doc.data() } as Redacao)
         })
+
+        // Ordenar manualmente
+        redacoesData.sort((a, b) => 
+          new Date(b.dataCriacao).getTime() - new Date(a.dataCriacao).getTime()
+        )
 
         setRedacoes(redacoesData)
         console.log('✅ Redações carregadas:', redacoesData.length)
@@ -100,168 +109,333 @@ function RedacaoContent() {
     carregarRedacoes()
   }, [user])
 
-  const handleSalvarRascunho = async () => {
-    if (!user || !texto || !tema) {
-      setErro('Preencha o tema e o texto da redação')
-      return
-    }
-
-    try {
-      const novaRedacao: Omit<Redacao, 'id'> = {
-        userId: user.uid,
-        tema,
-        texto,
-        status: 'rascunho',
-        dataCriacao: new Date().toISOString()
-      }
-
-      const docRef = await addDoc(collection(db, 'redacoes'), novaRedacao)
-      
-      const redacaoSalva = { id: docRef.id, ...novaRedacao }
-      setRedacoes([redacaoSalva, ...redacoes])
-      
-      alert('✅ Rascunho salvo com sucesso!')
-      console.log('💾 Redação salva:', docRef.id)
-    } catch (error) {
-      console.error('❌ Erro ao salvar rascunho:', error)
-      setErro('Erro ao salvar rascunho')
-    }
-  }
-
   const handleCorrigir = async () => {
-    if (!user || !texto || !tema) {
-      setErro('Preencha o tema e o texto da redação')
+    if (!texto.trim() || !tema.trim() || !user) {
+      alert('Preencha o tema e escreva sua redação')
       return
     }
 
-    const palavrasCount = texto.split(/\s+/).filter(p => p.length > 0).length
-    if (palavrasCount < 200) {
-      setErro('A redação deve ter pelo menos 200 palavras')
+    if (texto.trim().split(/\s+/).length < 200) {
+      alert('A redação deve ter pelo menos 200 palavras')
       return
     }
 
     setIsCorrigindo(true)
-    setErro('')
 
     try {
-      console.log('📝 Iniciando correção...')
-      console.log('Tema:', tema)
-      console.log('Texto:', texto.substring(0, 100) + '...')
+      console.log('📝 Enviando redação para correção...')
+      console.log('📋 Tema:', tema)
+      console.log('📄 Palavras:', texto.trim().split(/\s+/).length)
 
-      // Chamar API de correção
+      const payload = { 
+        tema: tema.trim(),
+        redacao: texto.trim() 
+      }
+
       const response = await fetch('/api/mentor/redacao-personalizado', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          tema: tema.trim(), 
-          redacao: texto.trim() 
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       })
 
-      console.log('Status da resposta:', response.status)
+      console.log('📡 Status da resposta:', response.status)
 
       if (!response.ok) {
         const errorData = await response.json()
-        console.error('Erro da API:', errorData)
-        throw new Error(errorData.erro || 'Erro ao corrigir redação')
+        console.error('❌ Erro da API:', errorData)
+        throw new Error(errorData.detalhes || errorData.erro || 'Erro ao corrigir redação')
       }
 
-      const data = await response.json()
-      console.log('✅ Resposta recebida:', data)
+      const resultado = await response.json()
+      console.log('✅ Correção recebida:', resultado)
+
+      // ✅ VALIDAÇÃO ADICIONAL
+      if (!resultado.notaFinal || !resultado.competencias || !Array.isArray(resultado.competencias)) {
+        console.error('❌ Resultado inválido:', resultado)
+        throw new Error('Resposta da API está incompleta')
+      }
+
+      if (resultado.competencias.length !== 5) {
+        console.error('❌ Número incorreto de competências:', resultado.competencias.length)
+        throw new Error('Correção incompleta - tente novamente')
+      }
+
+      // ✅ GARANTIR QUE TODOS OS CAMPOS EXISTEM
+      const competenciasValidas = resultado.competencias.map((comp: any) => ({
+        numero: comp.numero || 0,
+        titulo: comp.titulo || 'Competência',
+        nota: comp.nota || 0,
+        feedback: comp.feedback || 'Feedback não disponível'
+      }))
+
+      const pontosFortesValidos = Array.isArray(resultado.pontosFortesGerais) 
+        ? resultado.pontosFortesGerais 
+        : ['Análise em andamento']
+
+      const pontosAMelhorarValidos = Array.isArray(resultado.pontosAMelhorarGerais)
+        ? resultado.pontosAMelhorarGerais
+        : ['Análise em andamento']
 
       // Salvar redação no Firebase
       const novaRedacao: Omit<Redacao, 'id'> = {
         userId: user.uid,
         tema,
         texto,
+        notaFinal: resultado.notaFinal || 0,
+        competencias: competenciasValidas,
+        pontosFortesGerais: pontosFortesValidos,
+        pontosAMelhorarGerais: pontosAMelhorarValidos,
+        sugestoesGerais: resultado.sugestoesGerais || 'Continue praticando!',
         status: 'corrigida',
-        nota: data.notaFinal,
-        feedback: data.feedback,
         dataCriacao: new Date().toISOString(),
         dataCorrecao: new Date().toISOString()
       }
 
-      const docRef = await addDoc(collection(db, 'redacoes'), novaRedacao)
-      console.log('💾 Redação salva no Firebase:', docRef.id)
+      console.log('💾 Salvando no Firebase:', {
+        notaFinal: novaRedacao.notaFinal,
+        competencias: novaRedacao.competencias.length,
+        pontosFortesGerais: novaRedacao.pontosFortesGerais.length,
+        pontosAMelhorarGerais: novaRedacao.pontosAMelhorarGerais.length
+      })
 
-      const redacaoCorrigida = { id: docRef.id, ...novaRedacao }
-      setRedacoes([redacaoCorrigida, ...redacoes])
-      setRedacaoAtual(redacaoCorrigida)
+      const docRef = await addDoc(collection(db, 'redacoes'), novaRedacao)
+
+      const redacaoComId = { id: docRef.id, ...novaRedacao }
+      setRedacaoAtual(redacaoComId)
+      setMostrarCorrecao(true)
 
       // Atualizar stats do usuário
       if (userProfile) {
         const novosStats = {
           ...userProfile.stats,
           totalRedacoes: userProfile.stats.totalRedacoes + 1,
-          xpTotal: userProfile.stats.xpTotal + 100,
+          xpTotal: userProfile.stats.xpTotal + (resultado.notaFinal >= 700 ? 150 : 100),
           nivel: Math.floor((userProfile.stats.xpTotal + 100) / 500) + 1,
           mediaGeral: Math.round(
-            ((userProfile.stats.mediaGeral * userProfile.stats.totalRedacoes) + data.notaFinal) / 
-            (userProfile.stats.totalRedacoes + 1)
+            ((userProfile.stats.mediaGeral * (userProfile.stats.totalRedacoes + userProfile.stats.totalSimulados)) + resultado.notaFinal) / 
+            (userProfile.stats.totalRedacoes + userProfile.stats.totalSimulados + 1)
           )
         }
 
         await atualizarStats(novosStats)
       }
 
-      // Limpar campos
-      setTexto('')
-      setTema('')
+      // Recarregar redações
+      const q = query(collection(db, 'redacoes'), where('userId', '==', user.uid))
+      const querySnapshot = await getDocs(q)
+      const redacoesData: Redacao[] = []
+      querySnapshot.forEach((doc) => {
+        redacoesData.push({ id: doc.id, ...doc.data() } as Redacao)
+      })
+      
+      redacoesData.sort((a, b) => 
+        new Date(b.dataCriacao).getTime() - new Date(a.dataCriacao).getTime()
+      )
+      
+      setRedacoes(redacoesData)
 
-      alert(`🎉 Redação corrigida!\n\n📊 Nota: ${data.notaFinal}/1000\n✨ +100 XP`)
-
+      console.log('✅ Redação salva e stats atualizados')
     } catch (error: any) {
-      console.error('❌ Erro ao corrigir:', error)
-      setErro(error.message || 'Erro ao corrigir redação. Tente novamente.')
+      console.error('❌ Erro ao corrigir redação:', error)
+      alert('Erro ao corrigir redação: ' + error.message)
     } finally {
       setIsCorrigindo(false)
     }
   }
 
-  const palavrasCount = texto.split(/\s+/).filter(p => p.length > 0).length
-  const progresso = Math.min((palavrasCount / 300) * 100, 100)
+  const handleNovaRedacao = () => {
+    setTexto('')
+    setTema('')
+    setRedacaoAtual(null)
+    setMostrarCorrecao(false)
+  }
+
+  const handleVisualizarRedacao = (redacao: Redacao) => {
+    setRedacaoAtual(redacao)
+    setMostrarCorrecao(true)
+    setTexto(redacao.texto)
+    setTema(redacao.tema)
+  }
+
+  const getCorNota = (nota: number) => {
+    if (nota >= 160) return 'bg-green-600'
+    if (nota >= 120) return 'bg-blue-600'
+    if (nota >= 80) return 'bg-yellow-600'
+    return 'bg-red-600'
+  }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+      </div>
+    )
+  }
+
+  if (mostrarCorrecao && redacaoAtual) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="h-8 w-8 text-purple-600" />
+                <h1 className="text-xl font-bold text-gray-900">Correção da Redação</h1>
+              </div>
+              <div className="flex items-center gap-3">
+                <Badge className="bg-purple-600 text-lg px-4 py-2">
+                  <Award className="h-5 w-5 mr-2" />
+                  {redacaoAtual.notaFinal}/1000
+                </Badge>
+                {/* ✅ BOTÃO VOLTAR */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleNovaRedacao}
+                  className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Voltar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+          {/* Competências */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Avaliação por Competências</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {redacaoAtual.competencias.map((comp) => (
+                <div key={comp.numero} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">Competência {comp.numero}</Badge>
+                      <span className="text-sm font-medium">{comp.titulo}</span>
+                    </div>
+                    <Badge className={getCorNota(comp.nota)}>
+                      {comp.nota}/200
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{comp.feedback}</p>
+                  <Progress value={(comp.nota / 200) * 100} className="h-2" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Pontos Fortes */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-green-600">
+                <CheckCircle2 className="h-5 w-5" />
+                Pontos Fortes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {redacaoAtual.pontosFortesGerais.map((ponto, index) => (
+                  <li key={index} className="flex items-start gap-2">
+                    <span className="text-green-600 mt-1">✓</span>
+                    <span className="text-sm">{ponto}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+
+          {/* Pontos a Melhorar */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-orange-600">
+                <AlertCircle className="h-5 w-5" />
+                Pontos a Melhorar
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {redacaoAtual.pontosAMelhorarGerais.map((ponto, index) => (
+                  <li key={index} className="flex items-start gap-2">
+                    <span className="text-orange-600 mt-1">⚠</span>
+                    <span className="text-sm">{ponto}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+
+          {/* Sugestões */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-600">
+                <Sparkles className="h-5 w-5" />
+                Sugestões de Melhoria
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm leading-relaxed">{redacaoAtual.sugestoesGerais}</p>
+            </CardContent>
+          </Card>
+
+          {/* Botão Nova Redação */}
+          <Button onClick={handleNovaRedacao} className="w-full h-12 text-lg">
+            <FileText className="h-5 w-5 mr-2" />
+            Escrever Nova Redação
+          </Button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-2">
-              <Brain className="h-8 w-8 text-blue-600" />
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Corretor de Redação IA</h1>
-                <p className="text-xs text-muted-foreground">
-                  {userProfile?.stats.totalRedacoes || 0} redações corrigidas
-                </p>
+            <div className="flex items-center space-x-4">
+              {/* ✅ BOTÃO VOLTAR */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => router.push('/')}
+                className="hover:bg-gray-100"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div className="flex items-center space-x-2">
+                <Sparkles className="h-8 w-8 text-purple-600" />
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">Redação IA</h1>
+                  <p className="text-xs text-muted-foreground">
+                    {userProfile?.stats.totalRedacoes || 0} redações corrigidas
+                  </p>
+                </div>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <Badge variant="outline" className="flex items-center gap-1">
-                <Star className="h-4 w-4 text-yellow-500" />
-                Média: {userProfile?.stats.mediaGeral || 0}
-              </Badge>
-            </div>
+            {/* ✅ BOTÃO HOME */}
+            <Button
+              variant="outline"
+              onClick={() => router.push('/')}
+              className="gap-2"
+            >
+              <Home className="h-4 w-4" />
+              <span className="hidden sm:inline">Página Inicial</span>
+            </Button>
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Tabs defaultValue="escrever" className="space-y-6">
+        <Tabs defaultValue="nova" className="space-y-6">
           <TabsList className="grid w-full grid-cols-2 max-w-md">
-            <TabsTrigger value="escrever">
+            <TabsTrigger value="nova">
               <FileText className="h-4 w-4 mr-2" />
-              Escrever
+              Nova Redação
             </TabsTrigger>
             <TabsTrigger value="historico">
               <Clock className="h-4 w-4 mr-2" />
@@ -269,147 +443,72 @@ function RedacaoContent() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Aba: Escrever */}
-          <TabsContent value="escrever" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Editor */}
-              <div className="lg:col-span-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Nova Redação</CardTitle>
-                    <CardDescription>
-                      Escreva sua redação seguindo o modelo ENEM
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Tema */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Tema</label>
-                      <Textarea
-                        placeholder="Digite ou escolha um tema ao lado"
-                        value={tema}
-                        onChange={(e) => setTema(e.target.value)}
-                        rows={2}
-                      />
-                    </div>
-
-                    {/* Texto */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm font-medium">Texto da Redação</label>
-                        <span className="text-xs text-muted-foreground">
-                          {palavrasCount} palavras
-                        </span>
-                      </div>
-                      <Textarea
-                        placeholder="Digite sua redação aqui..."
-                        value={texto}
-                        onChange={(e) => setTexto(e.target.value)}
-                        rows={20}
-                        className="font-mono"
-                      />
-                      <Progress value={progresso} className="h-2" />
-                      <p className="text-xs text-muted-foreground">
-                        {palavrasCount < 200 && '⚠️ Mínimo: 200 palavras'}
-                        {palavrasCount >= 200 && palavrasCount < 300 && '👍 Continue escrevendo...'}
-                        {palavrasCount >= 300 && '✅ Quantidade adequada!'}
-                      </p>
-                    </div>
-
-                    {erro && (
-                      <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>{erro}</AlertDescription>
-                      </Alert>
-                    )}
-
-                    {/* Botões */}
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={handleSalvarRascunho}
-                        variant="outline"
-                        disabled={!texto || !tema}
-                      >
-                        <FileText className="h-4 w-4 mr-2" />
-                        Salvar Rascunho
-                      </Button>
-                      <Button
-                        onClick={handleCorrigir}
-                        disabled={isCorrigindo || palavrasCount < 200 || !tema}
-                        className="flex-1"
-                      >
-                        {isCorrigindo ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Corrigindo...
-                          </>
-                        ) : (
-                          <>
-                            <Send className="h-4 w-4 mr-2" />
-                            Corrigir com IA (+ 100 XP)
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Sidebar */}
-              <div className="space-y-4">
-                {/* Temas Sugeridos */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Temas Sugeridos</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {temasSugeridos.map((temaSugerido, index) => (
+          <TabsContent value="nova" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Escrever Redação</CardTitle>
+                <CardDescription>
+                  Escolha um tema e escreva sua redação no modelo ENEM
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Tema */}
+                <div className="space-y-2">
+                  <Label>Escolha um Tema</Label>
+                  <div className="grid grid-cols-1 gap-2">
+                    {temasDisponiveis.map((temaItem, index) => (
                       <Button
                         key={index}
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-start text-left h-auto py-2"
-                        onClick={() => setTema(temaSugerido)}
+                        variant={tema === temaItem ? 'default' : 'outline'}
+                        className="justify-start text-left h-auto py-3"
+                        onClick={() => setTema(temaItem)}
                       >
-                        <Lightbulb className="h-3 w-3 mr-2 flex-shrink-0" />
-                        <span className="text-xs">{temaSugerido}</span>
+                        {temaItem}
                       </Button>
                     ))}
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
-                {/* Dicas */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Target className="h-4 w-4" />
-                      Dicas ENEM
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-xs">
-                    <div className="flex items-start gap-2">
-                      <CheckCircle2 className="h-3 w-3 text-green-600 mt-0.5 flex-shrink-0" />
-                      <span>Use conectivos variados</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <CheckCircle2 className="h-3 w-3 text-green-600 mt-0.5 flex-shrink-0" />
-                      <span>Apresente proposta de intervenção</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <CheckCircle2 className="h-3 w-3 text-green-600 mt-0.5 flex-shrink-0" />
-                      <span>Respeite os direitos humanos</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <CheckCircle2 className="h-3 w-3 text-green-600 mt-0.5 flex-shrink-0" />
-                      <span>Evite clichês e senso comum</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
+                {/* Editor */}
+                {tema && (
+                  <div className="space-y-2">
+                    <Label>Sua Redação</Label>
+                    <Textarea
+                      placeholder="Escreva sua redação aqui... (mínimo 200 palavras)"
+                      value={texto}
+                      onChange={(e) => setTexto(e.target.value)}
+                      className="min-h-[400px] font-serif text-base leading-relaxed"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      {texto.trim().split(/\s+/).filter(Boolean).length} palavras
+                    </p>
+                  </div>
+                )}
+
+                {/* Botão Corrigir */}
+                {tema && texto.trim().split(/\s+/).length >= 200 && (
+                  <Button
+                    onClick={handleCorrigir}
+                    disabled={isCorrigindo}
+                    className="w-full h-14 text-lg"
+                  >
+                    {isCorrigindo ? (
+                      <>
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        Corrigindo Redação...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-5 w-5 mr-2" />
+                        Corrigir com IA
+                      </>
+                    )}
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
-          {/* Aba: Histórico */}
           <TabsContent value="historico" className="space-y-4">
             {redacoes.length === 0 ? (
               <Card>
@@ -420,52 +519,35 @@ function RedacaoContent() {
               </Card>
             ) : (
               redacoes.map((redacao) => (
-                <Card key={redacao.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader>
+                <Card
+                  key={redacao.id}
+                  className="hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => handleVisualizarRedacao(redacao)}
+                >
+                  <CardContent className="pt-6">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <CardTitle className="text-base">{redacao.tema}</CardTitle>
-                        <CardDescription>
+                        <h3 className="font-medium mb-1">{redacao.tema}</h3>
+                        <p className="text-sm text-muted-foreground mb-2">
                           {new Date(redacao.dataCriacao).toLocaleDateString('pt-BR', {
                             day: '2-digit',
                             month: 'long',
-                            year: 'numeric'
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
                           })}
-                        </CardDescription>
+                        </p>
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {redacao.texto.substring(0, 150)}...
+                        </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {redacao.status === 'rascunho' && (
-                          <Badge variant="outline">Rascunho</Badge>
-                        )}
-                        {redacao.status === 'corrigindo' && (
-                          <Badge variant="outline" className="text-yellow-600">
-                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                            Corrigindo
-                          </Badge>
-                        )}
-                        {redacao.status === 'corrigida' && redacao.nota && (
-                          <Badge className="bg-green-600">
-                            <Award className="h-3 w-3 mr-1" />
-                            {redacao.nota}/1000
-                          </Badge>
-                        )}
-                      </div>
+                      {redacao.status === 'corrigida' && (
+                        <Badge className={getCorNota(redacao.notaFinal)}>
+                          <Award className="h-3 w-3 mr-1" />
+                          {redacao.notaFinal}/1000
+                        </Badge>
+                      )}
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground line-clamp-3">
-                      {redacao.texto}
-                    </p>
-                    {redacao.status === 'corrigida' && redacao.feedback && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-4"
-                        onClick={() => setRedacaoAtual(redacao)}
-                      >
-                        Ver Correção Completa
-                      </Button>
-                    )}
                   </CardContent>
                 </Card>
               ))
