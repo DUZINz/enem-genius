@@ -1,190 +1,140 @@
-import { NextResponse } from 'next/server'
-import type { SimuladoGerado } from '@/lib/types/simulado'
+import { NextRequest, NextResponse } from 'next/server'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
-export async function POST(request: Request) {
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
+
+export async function POST(request: NextRequest) {
   try {
-    const { areas, quantidade } = await request.json()
-
-    const apiKey = process.env.GEMINI_API_KEY
+    console.log('🔄 Gerando simulado...')
     
-    if (!apiKey) {
-      throw new Error('GEMINI_API_KEY não configurada')
+    const body = await request.json()
+    const { disciplina, quantidade = 10 } = body
+
+    if (!disciplina) {
+      return NextResponse.json(
+        { erro: 'Disciplina é obrigatória' },
+        { status: 400 }
+      )
     }
 
-    const qtdQuestoes = quantidade || 20
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' })
 
-    const prompt = `Você é um GERADOR DE SIMULADOS ENEM. Crie exatamente ${qtdQuestoes} questões de múltipla escolha estilo ENEM.
+    const prompt = `
+Gere ${quantidade} questões de múltipla escolha sobre ${disciplina} no estilo ENEM.
 
-ÁREAS SOLICITADAS: ${areas?.join(', ') || 'Todas'}
+IMPORTANTE: Retorne APENAS um JSON válido, sem markdown, sem explicações.
 
-IMPORTANTE: 
-1. Retorne APENAS um JSON válido
-2. NÃO use markdown (sem \`\`\`json)
-3. NÃO quebre strings em múltiplas linhas
-4. Use aspas duplas corretamente
-5. Não coloque vírgula após o último elemento
-
-FORMATO EXATO:
-
+Formato esperado:
 {
   "questoes": [
     {
-      "numero": 1,
-      "disciplina": "Biologia",
-      "area": "natureza",
-      "tema": "Ecologia",
-      "comando": "Questão completa em uma única linha sem quebras.",
+      "id": "q1",
+      "enunciado": "Texto da questão com contexto real...",
       "alternativas": [
-        {"letra": "A", "texto": "Alternativa A em uma linha"},
-        {"letra": "B", "texto": "Alternativa B em uma linha"},
-        {"letra": "C", "texto": "Alternativa C em uma linha"},
-        {"letra": "D", "texto": "Alternativa D em uma linha"},
-        {"letra": "E", "texto": "Alternativa E em uma linha"}
+        "Alternativa A completa",
+        "Alternativa B completa",
+        "Alternativa C completa",
+        "Alternativa D completa",
+        "Alternativa E completa"
       ],
-      "gabarito": "B",
-      "dificuldade": "medio",
-      "explicacao": "Explicação breve do gabarito."
+      "respostaCorreta": 0,
+      "explicacao": "Explicação detalhada da resposta correta",
+      "disciplina": "${disciplina}",
+      "dificuldade": "medio"
     }
   ]
 }
 
-REGRAS:
-- Questões contextualizadas e realistas
-- Comando claro (máximo 3 linhas)
-- Alternativas de tamanho similar
-- Gabarito inequívoco
-- Explicação concisa
-- Temas variados
+Regras:
+- alternativas deve ser um ARRAY DE STRINGS (não objetos)
+- respostaCorreta é o ÍNDICE (0-4) da alternativa correta
+- enunciado deve ter contexto real e atual
+- explicacao deve ser completa e didática
+- dificuldade pode ser: "facil", "medio", "dificil"
+- questões devem variar em dificuldade
 
-CRIE ${qtdQuestoes} QUESTÕES AGORA!`
+Retorne APENAS o JSON válido.
+`
 
-    console.log('🔄 Gerando simulado...')
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: prompt }]
-          }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 8192,
-          }
-        })
-      }
-    )
-
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`API Error: ${JSON.stringify(errorData)}`)
-    }
-
-    const data = await response.json()
-    let text = data.candidates?.[0]?.content?.parts?.[0]?.text
-
-    if (!text) {
-      throw new Error('Resposta vazia da IA')
-    }
+    const result = await model.generateContent(prompt)
+    const response = result.response
+    let text = response.text()
 
     console.log('📝 Texto recebido (primeiros 500 chars):', text.substring(0, 500))
 
-    // LIMPEZA AGRESSIVA DO JSON
-    text = text.trim()
+    // Limpar markdown
+    text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     
-    // Remover markdown
-    text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '')
-    
-    // Remover quebras de linha dentro de strings (problema comum)
-    text = text.replace(/"\s*\n\s*"/g, '" "')
-    text = text.replace(/,\s*\n\s*}/g, '}')
-    text = text.replace(/,\s*\n\s*]/g, ']')
-    
-    // Encontrar o JSON válido
-    const jsonStart = text.indexOf('{')
-    const jsonEnd = text.lastIndexOf('}') + 1
-    
-    if (jsonStart === -1 || jsonEnd <= jsonStart) {
-      throw new Error('JSON não encontrado na resposta')
-    }
-    
-    text = text.substring(jsonStart, jsonEnd)
-
-    // Tentar corrigir vírgulas extras
-    text = text.replace(/,\s*([}\]])/g, '$1')
-
     console.log('🔧 JSON limpo (primeiros 500 chars):', text.substring(0, 500))
 
-    let resultado
-    try {
-      resultado = JSON.parse(text)
-    } catch (parseError: any) {
-      console.error('❌ Erro ao fazer parse:', parseError.message)
-      console.error('📄 JSON problemático:', text)
+    // Parse do JSON
+    const data = JSON.parse(text)
+
+    // Validar e normalizar estrutura
+    const questoesNormalizadas = data.questoes.map((q: any, index: number) => {
+      // Se alternativas vieram como objetos {letra, texto}, converter para array de strings
+      let alternativasArray: string[]
       
-      // Última tentativa: remover tudo após o último ] válido
-      const lastValidBracket = text.lastIndexOf(']}')
-      if (lastValidBracket > 0) {
-        text = text.substring(0, lastValidBracket + 2)
-        console.log('🔧 Tentando parse novamente após truncar...')
-        resultado = JSON.parse(text)
+      if (Array.isArray(q.alternativas)) {
+        if (typeof q.alternativas[0] === 'object') {
+          // Formato: [{letra: "A", texto: "..."}, ...]
+          alternativasArray = q.alternativas.map((alt: any) => alt.texto)
+        } else {
+          // Formato correto: ["texto1", "texto2", ...]
+          alternativasArray = q.alternativas
+        }
       } else {
-        throw new Error(`Parse falhou: ${parseError.message}`)
+        throw new Error('Formato de alternativas inválido')
       }
-    }
 
-    if (!resultado.questoes || !Array.isArray(resultado.questoes)) {
-      throw new Error('Formato inválido: questoes não é um array')
-    }
-
-    console.log(`✅ Simulado gerado com ${resultado.questoes.length} questões!`)
-
-    // Adicionar IDs únicos e validar
-    const questoesComId = resultado.questoes
-      .filter((q: any) => q && q.comando && q.alternativas && q.gabarito)
-      .map((q: any, index: number) => ({
-        id: `q${Date.now()}-${index}`,
-        numero: index + 1,
-        disciplina: q.disciplina || 'Geral',
-        area: q.area || 'natureza',
-        tema: q.tema || 'Conhecimentos gerais',
-        comando: q.comando,
-        alternativas: q.alternativas.slice(0, 5), // Garantir apenas 5
-        gabarito: q.gabarito,
-        dificuldade: q.dificuldade || 'medio',
-        explicacao: q.explicacao || ''
-      }))
-      .slice(0, qtdQuestoes) // Limitar ao solicitado
-
-    if (questoesComId.length === 0) {
-      throw new Error('Nenhuma questão válida foi gerada')
-    }
-
-    const simulado: SimuladoGerado = {
-      id: `sim-${Date.now()}`,
-      titulo: `Simulado ENEM - ${new Date().toLocaleDateString('pt-BR')}`,
-      dataGeracao: new Date(),
-      questoes: questoesComId,
-      totalQuestoes: questoesComId.length,
-      distribuicao: {
-        linguagens: questoesComId.filter((q: any) => q.area === 'linguagens').length,
-        humanas: questoesComId.filter((q: any) => q.area === 'humanas').length,
-        natureza: questoesComId.filter((q: any) => q.area === 'natureza').length,
-        matematica: questoesComId.filter((q: any) => q.area === 'matematica').length,
+      return {
+        id: q.id || `q${index + 1}`,
+        enunciado: q.enunciado,
+        alternativas: alternativasArray, // ✅ Array de strings
+        respostaCorreta: q.respostaCorreta,
+        explicacao: q.explicacao,
+        disciplina: q.disciplina || disciplina,
+        dificuldade: q.dificuldade || 'medio'
       }
+    })
+
+    // Calcular distribuição
+    const distribuicao = {
+      linguagens: 0,
+      humanas: 0,
+      natureza: 0,
+      matematica: 0
     }
 
-    console.log('📊 Distribuição:', simulado.distribuicao)
-    return NextResponse.json(simulado)
+    questoesNormalizadas.forEach((q: any) => {
+      const disc = q.disciplina.toLowerCase()
+      if (disc.includes('português') || disc.includes('inglês') || disc.includes('espanhol') || disc.includes('literatura') || disc.includes('linguagem')) {
+        distribuicao.linguagens++
+      } else if (disc.includes('história') || disc.includes('geografia') || disc.includes('filosofia') || disc.includes('sociologia')) {
+        distribuicao.humanas++
+      } else if (disc.includes('física') || disc.includes('química') || disc.includes('biologia') || disc.includes('ciências')) {
+        distribuicao.natureza++
+      } else if (disc.includes('matemática') || disc.includes('matematica')) {
+        distribuicao.matematica++
+      }
+    })
+
+    console.log('✅ Simulado gerado com', questoesNormalizadas.length, 'questões!')
+    console.log('📊 Distribuição:', distribuicao)
+
+    return NextResponse.json({
+      questoes: questoesNormalizadas,
+      sucesso: true
+    })
 
   } catch (error: any) {
-    console.error('💥 ERRO COMPLETO:', error)
+    console.error('❌ Erro ao gerar simulado:', error)
+    console.error('Stack:', error.stack)
+    
     return NextResponse.json(
       { 
-        error: 'Erro ao gerar simulado. Tente novamente.',
-        detalhes: error?.message 
+        erro: 'Erro ao gerar simulado',
+        detalhes: error.message 
       },
       { status: 500 }
     )

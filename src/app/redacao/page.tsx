@@ -1,338 +1,486 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { useAuth } from '@/hooks/useAuth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import { AlertCircle, CheckCircle2, Lightbulb, FileText, Loader2, AlertTriangle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useMentor } from '@/hooks/useMentor'
-import { useUserStats } from '@/hooks/useUserStats'
-import type { CorrecaoRedacao as CorrecaoRedacaoType } from '@/lib/types/mentor'
+import { Progress } from '@/components/ui/progress'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  BookOpen,
+  Send,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  Lightbulb,
+  Star,
+  Brain,
+  FileText,
+  Clock,
+  Target,
+  Award
+} from 'lucide-react'
+import { collection, addDoc, query, where, orderBy, getDocs, doc, updateDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 
-export default function RedacaoPage() {
-  const [activeTab, setActiveTab] = useState('escrever')
+interface Redacao {
+  id: string
+  userId: string
+  tema: string
+  texto: string
+  nota?: number
+  feedback?: {
+    competencia1: { nota: number; comentario: string }
+    competencia2: { nota: number; comentario: string }
+    competencia3: { nota: number; comentario: string }
+    competencia4: { nota: number; comentario: string }
+    competencia5: { nota: number; comentario: string }
+    pontosFortes: string[]
+    pontosMelhoria: string[]
+    sugestoes: string[]
+  }
+  status: 'rascunho' | 'corrigindo' | 'corrigida'
+  dataCriacao: string
+  dataCorrecao?: string
+}
+
+function RedacaoContent() {
+  const { user, userProfile, atualizarStats } = useAuth()
+  const [redacoes, setRedacoes] = useState<Redacao[]>([])
+  const [redacaoAtual, setRedacaoAtual] = useState<Redacao | null>(null)
+  const [texto, setTexto] = useState('')
   const [tema, setTema] = useState('')
-  const [redacao, setRedacao] = useState('')
-  const [correcaoAtual, setCorrecaoAtual] = useState<CorrecaoRedacaoType | null>(null)
-  const [mostrarTextoCorrigido, setMostrarTextoCorrigido] = useState(false)
-  
-  const { corrigirRedacao, isLoading, erro } = useMentor()
-  const { registrarRedacao } = useUserStats()
+  const [isCorrigindo, setIsCorrigindo] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [erro, setErro] = useState('')
 
-  const handleCorrigir = async () => {
-    if (!redacao.trim() || redacao.length < 50) {
-      alert('Escreva pelo menos 50 caracteres para a redação ser corrigida.')
+  const temasSugeridos = [
+    'A importância da educação financeira nas escolas',
+    'Desafios da mobilidade urbana nas grandes cidades',
+    'O impacto das redes sociais na saúde mental dos jovens',
+    'A democratização do acesso à internet no Brasil',
+    'Combate à violência contra a mulher',
+    'Sustentabilidade e consumo consciente',
+    'O papel da tecnologia na educação pós-pandemia'
+  ]
+
+  // Carregar redações do Firebase
+  useEffect(() => {
+    const carregarRedacoes = async () => {
+      if (!user) return
+
+      try {
+        // ✅ VOLTAR A USAR orderBy (índice criado)
+        const q = query(
+          collection(db, 'redacoes'),
+          where('userId', '==', user.uid),
+          orderBy('dataCriacao', 'desc') // ✅ Pode usar agora
+        )
+
+        const querySnapshot = await getDocs(q)
+        const redacoesData: Redacao[] = []
+
+        querySnapshot.forEach((doc) => {
+          redacoesData.push({ id: doc.id, ...doc.data() } as Redacao)
+        })
+
+        setRedacoes(redacoesData)
+        console.log('✅ Redações carregadas:', redacoesData.length)
+      } catch (error) {
+        console.error('❌ Erro ao carregar redações:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    carregarRedacoes()
+  }, [user])
+
+  const handleSalvarRascunho = async () => {
+    if (!user || !texto || !tema) {
+      setErro('Preencha o tema e o texto da redação')
       return
     }
 
-    const correcao = await corrigirRedacao(redacao)
-    if (correcao) {
-      setCorrecaoAtual(correcao)
-      setActiveTab('resultado')
+    try {
+      const novaRedacao: Omit<Redacao, 'id'> = {
+        userId: user.uid,
+        tema,
+        texto,
+        status: 'rascunho',
+        dataCriacao: new Date().toISOString()
+      }
 
-      // 🎯 REGISTRAR NO SISTEMA GLOBAL - CORRIGIDO
-      const tempoTotal = 60 // tempo estimado de redação
-      const notaTotal = correcao.nota_total // <-- USA A NOTA TOTAL DIRETAMENTE
-      const resultado = registrarRedacao(notaTotal, tempoTotal)
+      const docRef = await addDoc(collection(db, 'redacoes'), novaRedacao)
       
-      alert(`📝 Redação corrigida!\n\nNota: ${notaTotal}/1000\n+${resultado.xpGanho} XP`)
+      const redacaoSalva = { id: docRef.id, ...novaRedacao }
+      setRedacoes([redacaoSalva, ...redacoes])
+      
+      alert('✅ Rascunho salvo com sucesso!')
+      console.log('💾 Redação salva:', docRef.id)
+    } catch (error) {
+      console.error('❌ Erro ao salvar rascunho:', error)
+      setErro('Erro ao salvar rascunho')
     }
   }
 
-  const handleNovaRedacao = () => {
-    setRedacao('')
-    setTema('')
-    setCorrecaoAtual(null)
-    setMostrarTextoCorrigido(false)
-    setActiveTab('escrever')
+  const handleCorrigir = async () => {
+    if (!user || !texto || !tema) {
+      setErro('Preencha o tema e o texto da redação')
+      return
+    }
+
+    const palavrasCount = texto.split(/\s+/).filter(p => p.length > 0).length
+    if (palavrasCount < 200) {
+      setErro('A redação deve ter pelo menos 200 palavras')
+      return
+    }
+
+    setIsCorrigindo(true)
+    setErro('')
+
+    try {
+      console.log('📝 Iniciando correção...')
+      console.log('Tema:', tema)
+      console.log('Texto:', texto.substring(0, 100) + '...')
+
+      // Chamar API de correção
+      const response = await fetch('/api/mentor/redacao-personalizado', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          tema: tema.trim(), 
+          redacao: texto.trim() 
+        })
+      })
+
+      console.log('Status da resposta:', response.status)
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('Erro da API:', errorData)
+        throw new Error(errorData.erro || 'Erro ao corrigir redação')
+      }
+
+      const data = await response.json()
+      console.log('✅ Resposta recebida:', data)
+
+      // Salvar redação no Firebase
+      const novaRedacao: Omit<Redacao, 'id'> = {
+        userId: user.uid,
+        tema,
+        texto,
+        status: 'corrigida',
+        nota: data.notaFinal,
+        feedback: data.feedback,
+        dataCriacao: new Date().toISOString(),
+        dataCorrecao: new Date().toISOString()
+      }
+
+      const docRef = await addDoc(collection(db, 'redacoes'), novaRedacao)
+      console.log('💾 Redação salva no Firebase:', docRef.id)
+
+      const redacaoCorrigida = { id: docRef.id, ...novaRedacao }
+      setRedacoes([redacaoCorrigida, ...redacoes])
+      setRedacaoAtual(redacaoCorrigida)
+
+      // Atualizar stats do usuário
+      if (userProfile) {
+        const novosStats = {
+          ...userProfile.stats,
+          totalRedacoes: userProfile.stats.totalRedacoes + 1,
+          xpTotal: userProfile.stats.xpTotal + 100,
+          nivel: Math.floor((userProfile.stats.xpTotal + 100) / 500) + 1,
+          mediaGeral: Math.round(
+            ((userProfile.stats.mediaGeral * userProfile.stats.totalRedacoes) + data.notaFinal) / 
+            (userProfile.stats.totalRedacoes + 1)
+          )
+        }
+
+        await atualizarStats(novosStats)
+      }
+
+      // Limpar campos
+      setTexto('')
+      setTema('')
+
+      alert(`🎉 Redação corrigida!\n\n📊 Nota: ${data.notaFinal}/1000\n✨ +100 XP`)
+
+    } catch (error: any) {
+      console.error('❌ Erro ao corrigir:', error)
+      setErro(error.message || 'Erro ao corrigir redação. Tente novamente.')
+    } finally {
+      setIsCorrigindo(false)
+    }
   }
 
-  const getCorCompetencia = (nota: number) => {
-    if (nota >= 160) return 'text-green-600'
-    if (nota >= 120) return 'text-yellow-600'
-    return 'text-red-600'
-  }
+  const palavrasCount = texto.split(/\s+/).filter(p => p.length > 0).length
+  const progresso = Math.min((palavrasCount / 300) * 100, 100)
 
-  const getNivelCompetencia = (nota: number) => {
-    if (nota === 200) return 'Excelente'
-    if (nota >= 160) return 'Bom'
-    if (nota >= 120) return 'Regular'
-    if (nota >= 80) return 'Fraco'
-    return 'Muito Fraco'
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">Corretor de Redação ENEM</h1>
-        <p className="text-muted-foreground">
-          Receba feedback detalhado baseado nas 5 competências do ENEM
-        </p>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3 mb-6">
-          <TabsTrigger value="escrever">
-            <FileText className="w-4 h-4 mr-2" />
-            Escrever
-          </TabsTrigger>
-          <TabsTrigger value="upload" disabled>
-            <AlertCircle className="w-4 h-4 mr-2" />
-            Upload/OCR
-          </TabsTrigger>
-          <TabsTrigger value="resultado" disabled={!correcaoAtual}>
-            <CheckCircle2 className="w-4 h-4 mr-2" />
-            Resultado
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="escrever" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Digite sua Redação</CardTitle>
-              <CardDescription>
-                Escreva uma redação dissertativa-argumentativa seguindo o tema proposto
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="tema">Tema (opcional)</Label>
-                <Input
-                  id="tema"
-                  placeholder="Ex: Desafios da educação no Brasil"
-                  value={tema}
-                  onChange={(e) => setTema(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="redacao">Sua Redação</Label>
-                <Textarea
-                  id="redacao"
-                  placeholder="Digite sua redação aqui..."
-                  className="min-h-[400px] font-mono text-sm"
-                  value={redacao}
-                  onChange={(e) => setRedacao(e.target.value)}
-                />
-                <p className="text-sm text-muted-foreground">
-                  {redacao.length} caracteres
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-2">
+              <Brain className="h-8 w-8 text-blue-600" />
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">Corretor de Redação IA</h1>
+                <p className="text-xs text-muted-foreground">
+                  {userProfile?.stats.totalRedacoes || 0} redações corrigidas
                 </p>
               </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <Badge variant="outline" className="flex items-center gap-1">
+                <Star className="h-4 w-4 text-yellow-500" />
+                Média: {userProfile?.stats.mediaGeral || 0}
+              </Badge>
+            </div>
+          </div>
+        </div>
+      </header>
 
-              {erro && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{erro}</AlertDescription>
-                </Alert>
-              )}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <Tabs defaultValue="escrever" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2 max-w-md">
+            <TabsTrigger value="escrever">
+              <FileText className="h-4 w-4 mr-2" />
+              Escrever
+            </TabsTrigger>
+            <TabsTrigger value="historico">
+              <Clock className="h-4 w-4 mr-2" />
+              Histórico ({redacoes.length})
+            </TabsTrigger>
+          </TabsList>
 
-              <Button 
-                onClick={handleCorrigir} 
-                disabled={isLoading || redacao.length < 50}
-                className="w-full"
-                size="lg"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Corrigindo...
-                  </>
-                ) : (
-                  'Corrigir Redação'
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
+          {/* Aba: Escrever */}
+          <TabsContent value="escrever" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Editor */}
+              <div className="lg:col-span-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Nova Redação</CardTitle>
+                    <CardDescription>
+                      Escreva sua redação seguindo o modelo ENEM
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Tema */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Tema</label>
+                      <Textarea
+                        placeholder="Digite ou escolha um tema ao lado"
+                        value={tema}
+                        onChange={(e) => setTema(e.target.value)}
+                        rows={2}
+                      />
+                    </div>
 
-        <TabsContent value="resultado" className="space-y-6">
-          {correcaoAtual && (
-            <>
-              {/* Nota Total */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <CheckCircle2 className="w-6 h-6 text-purple-600" />
-                      Resultado da Correção
-                    </CardTitle>
-                    <div className="text-right">
-                      <p className="text-4xl font-bold text-purple-600">
-                        {correcaoAtual.nota_total}
-                        <span className="text-lg text-muted-foreground">/1000</span>
+                    {/* Texto */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium">Texto da Redação</label>
+                        <span className="text-xs text-muted-foreground">
+                          {palavrasCount} palavras
+                        </span>
+                      </div>
+                      <Textarea
+                        placeholder="Digite sua redação aqui..."
+                        value={texto}
+                        onChange={(e) => setTexto(e.target.value)}
+                        rows={20}
+                        className="font-mono"
+                      />
+                      <Progress value={progresso} className="h-2" />
+                      <p className="text-xs text-muted-foreground">
+                        {palavrasCount < 200 && '⚠️ Mínimo: 200 palavras'}
+                        {palavrasCount >= 200 && palavrasCount < 300 && '👍 Continue escrevendo...'}
+                        {palavrasCount >= 300 && '✅ Quantidade adequada!'}
                       </p>
-                      <p className="text-sm text-muted-foreground">Nota Total</p>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-5 gap-4">
-                    {Object.entries(correcaoAtual.notas_competencias).map(([comp, nota]) => (
-                      <div key={comp} className="text-center space-y-2">
-                        <div className="flex items-center justify-center gap-1">
-                          <p className="text-sm font-medium text-muted-foreground">{comp}</p>
-                          <CheckCircle2 className="w-3 h-3 text-green-500" />
-                        </div>
-                        <p className={`text-3xl font-bold ${getCorCompetencia(nota)}`}>
-                          {nota}
-                        </p>
-                        <Progress value={(nota / 200) * 100} className="h-2" />
-                        <p className="text-xs text-muted-foreground">
-                          {getNivelCompetencia(nota)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
 
-              {/* Feedback Detalhado */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Lightbulb className="w-5 h-5 text-yellow-600" />
-                    Feedback Detalhado
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {correcaoAtual.comentarios.map((comentario, index) => (
-                    <Alert
-                      key={index}
-                      variant={
-                        comentario.includes('🟢') ? 'default' :
-                        comentario.includes('🟡') ? 'default' : 'destructive'
-                      }
-                      className={
-                        comentario.includes('🟢') ? 'bg-green-50 border-green-200' :
-                        comentario.includes('🟡') ? 'bg-yellow-50 border-yellow-200' :
-                        'bg-red-50 border-red-200'
-                      }
-                    >
-                      <AlertDescription className="text-sm">
-                        {comentario}
-                      </AlertDescription>
-                    </Alert>
-                  ))}
-                </CardContent>
-              </Card>
+                    {erro && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{erro}</AlertDescription>
+                      </Alert>
+                    )}
 
-              {/* Erros Identificados - MELHORADO */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5 text-red-600" />
-                    Erros Identificados
-                  </CardTitle>
-                  <CardDescription>
-                    Pontos que precisam de atenção especial
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {correcaoAtual.erros_detectados.map((erro, index) => (
-                      <div 
-                        key={index}
-                        className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                    {/* Botões */}
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleSalvarRascunho}
+                        variant="outline"
+                        disabled={!texto || !tema}
                       >
-                        <div className="flex-shrink-0 mt-0.5">
-                          <div className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
-                            {index + 1}
-                          </div>
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm text-red-900 leading-relaxed">
-                            {erro}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {correcaoAtual.erros_detectados.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <CheckCircle2 className="w-12 h-12 mx-auto mb-2 text-green-500" />
-                      <p>Nenhum erro crítico identificado! 🎉</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Dicas Personalizadas */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Lightbulb className="w-5 h-5 text-blue-600" />
-                    Dicas Personalizadas
-                  </CardTitle>
-                  <CardDescription>
-                    Sugestões para melhorar sua redação
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-3">
-                    {correcaoAtual.dicas_personalizadas.map((dica, index) => (
-                      <div
-                        key={index}
-                        className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                        <FileText className="h-4 w-4 mr-2" />
+                        Salvar Rascunho
+                      </Button>
+                      <Button
+                        onClick={handleCorrigir}
+                        disabled={isCorrigindo || palavrasCount < 200 || !tema}
+                        className="flex-1"
                       >
-                        <Lightbulb className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                        <p className="text-sm text-blue-900 leading-relaxed">
-                          {dica}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Versão Corrigida */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-purple-600" />
-                        Versão Corrigida
-                      </CardTitle>
-                      <CardDescription>
-                        Sugestão de melhoria da sua redação
-                      </CardDescription>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setMostrarTextoCorrigido(!mostrarTextoCorrigido)}
-                    >
-                      {mostrarTextoCorrigido ? 'Ocultar' : 'Mostrar'}
-                    </Button>
-                  </div>
-                </CardHeader>
-                {mostrarTextoCorrigido && (
-                  <CardContent>
-                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                      <p className="text-sm text-purple-900 whitespace-pre-wrap leading-relaxed">
-                        {correcaoAtual.texto_corrigido}
-                      </p>
+                        {isCorrigindo ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Corrigindo...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-4 w-4 mr-2" />
+                            Corrigir com IA (+ 100 XP)
+                          </>
+                        )}
+                      </Button>
                     </div>
                   </CardContent>
-                )}
-              </Card>
+                </Card>
+              </div>
 
-              <Button onClick={handleNovaRedacao} className="w-full" size="lg">
-                <FileText className="mr-2 h-4 w-4" />
-                Escrever Nova Redação
-              </Button>
-            </>
-          )}
-        </TabsContent>
-      </Tabs>
+              {/* Sidebar */}
+              <div className="space-y-4">
+                {/* Temas Sugeridos */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Temas Sugeridos</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {temasSugeridos.map((temaSugerido, index) => (
+                      <Button
+                        key={index}
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start text-left h-auto py-2"
+                        onClick={() => setTema(temaSugerido)}
+                      >
+                        <Lightbulb className="h-3 w-3 mr-2 flex-shrink-0" />
+                        <span className="text-xs">{temaSugerido}</span>
+                      </Button>
+                    ))}
+                  </CardContent>
+                </Card>
+
+                {/* Dicas */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Target className="h-4 w-4" />
+                      Dicas ENEM
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-xs">
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="h-3 w-3 text-green-600 mt-0.5 flex-shrink-0" />
+                      <span>Use conectivos variados</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="h-3 w-3 text-green-600 mt-0.5 flex-shrink-0" />
+                      <span>Apresente proposta de intervenção</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="h-3 w-3 text-green-600 mt-0.5 flex-shrink-0" />
+                      <span>Respeite os direitos humanos</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="h-3 w-3 text-green-600 mt-0.5 flex-shrink-0" />
+                      <span>Evite clichês e senso comum</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Aba: Histórico */}
+          <TabsContent value="historico" className="space-y-4">
+            {redacoes.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">Você ainda não escreveu nenhuma redação</p>
+                </CardContent>
+              </Card>
+            ) : (
+              redacoes.map((redacao) => (
+                <Card key={redacao.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-base">{redacao.tema}</CardTitle>
+                        <CardDescription>
+                          {new Date(redacao.dataCriacao).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: 'long',
+                            year: 'numeric'
+                          })}
+                        </CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {redacao.status === 'rascunho' && (
+                          <Badge variant="outline">Rascunho</Badge>
+                        )}
+                        {redacao.status === 'corrigindo' && (
+                          <Badge variant="outline" className="text-yellow-600">
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            Corrigindo
+                          </Badge>
+                        )}
+                        {redacao.status === 'corrigida' && redacao.nota && (
+                          <Badge className="bg-green-600">
+                            <Award className="h-3 w-3 mr-1" />
+                            {redacao.nota}/1000
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground line-clamp-3">
+                      {redacao.texto}
+                    </p>
+                    {redacao.status === 'corrigida' && redacao.feedback && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-4"
+                        onClick={() => setRedacaoAtual(redacao)}
+                      >
+                        Ver Correção Completa
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
+  )
+}
+
+export default function RedacaoPage() {
+  return (
+    <ProtectedRoute>
+      <RedacaoContent />
+    </ProtectedRoute>
   )
 }

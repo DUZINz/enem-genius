@@ -1,213 +1,163 @@
-import { NextResponse } from 'next/server'
-import { CorrecaoRedacao } from '@/lib/types/mentor'
+import { NextRequest, NextResponse } from 'next/server'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
-export async function POST(request: Request) {
-  let textoOriginal = ''
-  
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
+
+export async function POST(request: NextRequest) {
   try {
-    const { texto } = await request.json()
-    textoOriginal = texto
+    console.log('🔍 Recebendo requisição de correção de redação...')
+    
+    const body = await request.json()
+    console.log('📝 Dados recebidos:', { 
+      temaTamanho: body.tema?.length, 
+      redacaoTamanho: body.redacao?.length 
+    })
 
-    if (!texto || texto.trim().length < 50) {
+    const { tema, redacao } = body
+
+    // Validação dos dados
+    if (!tema || !redacao) {
+      console.error('❌ Dados faltando:', { tema: !!tema, redacao: !!redacao })
       return NextResponse.json(
-        { error: 'Texto muito curto para análise. Escreva pelo menos 50 caracteres.' },
+        { erro: 'Tema e redação são obrigatórios' },
         { status: 400 }
       )
     }
 
-    const apiKey = process.env.GEMINI_API_KEY
-    
-    if (!apiKey) {
-      throw new Error('GEMINI_API_KEY não configurada')
+    if (redacao.split(' ').filter((p: string) => p.length > 0).length < 200) {
+      console.error('❌ Redação muito curta')
+      return NextResponse.json(
+        { erro: 'A redação deve ter pelo menos 200 palavras' },
+        { status: 400 }
+      )
     }
 
-    console.log('🔑 Gemini API Key presente')
+    console.log('✅ Validação OK, iniciando correção...')
 
-    const prompt = `Você é um CORRETOR OFICIAL DE REDAÇÕES DO ENEM. Analise a redação abaixo e retorne APENAS um JSON válido.
+    // ⭐ CORREÇÃO: Usar modelo correto
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' })
+
+    const prompt = `
+Você é um corretor especializado em redações do ENEM. Analise a redação abaixo e forneça uma correção COMPLETA e DETALHADA.
+
+TEMA: ${tema}
 
 REDAÇÃO:
-"""
-${texto}
-"""
+${redacao}
 
-IMPORTANTE: Retorne APENAS o JSON abaixo, sem texto antes ou depois, sem markdown:
+Sua análise deve ser EXTREMAMENTE RIGOROSA, seguindo os critérios do ENEM:
+
+**COMPETÊNCIA 1 - Domínio da modalidade escrita formal da língua portuguesa (0-200)**
+Avalie: ortografia, acentuação, pontuação, concordância, regência, estrutura sintática.
+
+**COMPETÊNCIA 2 - Compreender a proposta e aplicar conceitos (0-200)**
+Avalie: se o tema foi compreendido, se há repertório sociocultural, se desenvolveu o tema.
+
+**COMPETÊNCIA 3 - Selecionar e relacionar argumentos (0-200)**
+Avalie: organização das ideias, coerência, progressão textual, relação entre parágrafos.
+
+**COMPETÊNCIA 4 - Conhecimento dos mecanismos linguísticos (0-200)**
+Avalie: uso de conectivos, coesão referencial, sequenciamento textual.
+
+**COMPETÊNCIA 5 - Elaborar proposta de intervenção (0-200)**
+Avalie: se há proposta, se é detalhada, se respeita direitos humanos, se tem agente/ação/meio/efeito/detalhamento.
+
+Para CADA competência, forneça:
+- Nota (0-200)
+- Comentário detalhado (mínimo 3 linhas explicando)
+- Exemplos ESPECÍFICOS do texto
+
+Depois, forneça:
+- 5 pontos fortes ESPECÍFICOS
+- 5 pontos de melhoria ESPECÍFICOS com sugestões práticas
+- 3 sugestões de como melhorar a redação
+
+Retorne APENAS um JSON válido no seguinte formato:
 
 {
-  "nota_total": 800,
-  "notas_competencias": {
-    "C1": 160,
-    "C2": 160,
-    "C3": 160,
-    "C4": 160,
-    "C5": 160
+  "competencia1": {
+    "nota": 160,
+    "comentario": "Comentário detalhado de 3+ linhas..."
   },
-  "comentarios": [
-    "🟢 PONTOS FORTES: [Liste 3-4 pontos positivos específicos da redação]",
-    "🟡 PONTOS A MELHORAR: [Liste 3-4 aspectos que podem melhorar]",
-    "🔴 PONTOS CRÍTICOS: [Liste 2-3 problemas graves]"
+  "competencia2": {
+    "nota": 180,
+    "comentario": "Comentário detalhado de 3+ linhas..."
+  },
+  "competencia3": {
+    "nota": 160,
+    "comentario": "Comentário detalhado de 3+ linhas..."
+  },
+  "competencia4": {
+    "nota": 160,
+    "comentario": "Comentário detalhado de 3+ linhas..."
+  },
+  "competencia5": {
+    "nota": 160,
+    "comentario": "Comentário detalhado de 3+ linhas..."
+  },
+  "pontosFortes": [
+    "Ponto forte específico 1...",
+    "Ponto forte específico 2...",
+    "Ponto forte específico 3...",
+    "Ponto forte específico 4...",
+    "Ponto forte específico 5..."
   ],
-  "erros_detectados": [
-    "Erro 1 com exemplo",
-    "Erro 2 com exemplo",
-    "Erro 3 com exemplo"
+  "pontosMelhoria": [
+    "Ponto de melhoria específico 1...",
+    "Ponto de melhoria específico 2...",
+    "Ponto de melhoria específico 3...",
+    "Ponto de melhoria específico 4...",
+    "Ponto de melhoria específico 5..."
   ],
-  "dicas_personalizadas": [
-    "💡 C1: [Dica gramática]",
-    "💡 C2: [Dica tema]",
-    "💡 C3: [Dica argumentação]",
-    "💡 C4: [Dica coesão]",
-    "💡 C5: [Dica proposta]"
-  ],
-  "texto_corrigido": "Versão corrigida"
+  "sugestoes": [
+    "Sugestão prática 1...",
+    "Sugestão prática 2...",
+    "Sugestão prática 3..."
+  ]
 }
 
-CRITÉRIOS (0-200, múltiplos de 20):
-C1: Gramática | C2: Tema | C3: Argumentação | C4: Coesão | C5: Proposta (AÇÃO+AGENTE+MODO+FINALIDADE+DETALHAMENTO)
+IMPORTANTE: Retorne APENAS o JSON, sem markdown, sem explicações extras.
+`
 
-ESCALA: 200=Excelente | 160=Bom | 120=Regular | 80=Fraco
+    console.log('🤖 Enviando para Gemini 2.0 Flash...')
+    const result = await model.generateContent(prompt)
+    const response = result.response
+    let text = response.text()
 
-JSON PURO!`
+    console.log('📥 Resposta recebida do Gemini')
 
-    // Lista de endpoints para tentar
-    const endpoints = [
-      // Novos modelos (v1beta)
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent`,
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent`,
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent`,
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`,
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent`,
-      // Modelos antigos (v1beta)
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent`,
-      // v1
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent`,
-      `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent`,
-    ]
+    // Limpar markdown se houver
+    text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
 
-    let ultimoErro = null
+    // Parse do JSON
+    const feedback = JSON.parse(text)
 
-    for (const endpoint of endpoints) {
-      try {
-        const modelName = endpoint.split('/models/')[1]?.split(':')[0] || 'unknown'
-        console.log(`🔄 Tentando: ${modelName}...`)
+    // Calcular nota final
+    const notaFinal = 
+      feedback.competencia1.nota +
+      feedback.competencia2.nota +
+      feedback.competencia3.nota +
+      feedback.competencia4.nota +
+      feedback.competencia5.nota
 
-        const response = await fetch(`${endpoint}?key=${apiKey}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: prompt
-              }]
-            }],
-            generationConfig: {
-              temperature: 0.3,
-              maxOutputTokens: 4096,
-            }
-          })
-        })
+    console.log('✅ Correção finalizada. Nota:', notaFinal)
 
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.log(`❌ ${modelName}: ${errorData.error?.message || 'erro desconhecido'}`)
-          ultimoErro = errorData
-          continue
-        }
+    return NextResponse.json({
+      feedback,
+      notaFinal,
+      sucesso: true
+    })
 
-        const data = await response.json()
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-        
-        if (!text) {
-          console.log(`⚠️ ${modelName}: resposta vazia`)
-          continue
-        }
-
-        console.log(`✅ FUNCIONOU com: ${modelName}`)
-        console.log('📄 Primeiros 300 chars:', text.substring(0, 300))
-        
-        // Limpar e extrair JSON
-        let jsonText = text.trim()
-        jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '')
-        
-        const jsonStart = jsonText.indexOf('{')
-        const jsonEnd = jsonText.lastIndexOf('}') + 1
-        
-        if (jsonStart !== -1 && jsonEnd > jsonStart) {
-          jsonText = jsonText.substring(jsonStart, jsonEnd)
-        }
-        
-        const correcao: CorrecaoRedacao = JSON.parse(jsonText)
-        
-        console.log('✅ JSON parseado!')
-        console.log('📊 Notas:', correcao.notas_competencias)
-        
-        const validarNota = (nota: number): number => {
-          const notaArredondada = Math.round(nota / 20) * 20
-          return Math.max(0, Math.min(200, notaArredondada))
-        }
-        
-        const correcaoValidada: CorrecaoRedacao = {
-          nota_total: validarNota(correcao.notas_competencias.C1) +
-            validarNota(correcao.notas_competencias.C2) +
-            validarNota(correcao.notas_competencias.C3) +
-            validarNota(correcao.notas_competencias.C4) +
-            validarNota(correcao.notas_competencias.C5),
-          notas_competencias: {
-            C1: validarNota(correcao.notas_competencias.C1),
-            C2: validarNota(correcao.notas_competencias.C2),
-            C3: validarNota(correcao.notas_competencias.C3),
-            C4: validarNota(correcao.notas_competencias.C4),
-            C5: validarNota(correcao.notas_competencias.C5)
-          },
-          comentarios: correcao.comentarios,
-          erros_detectados: correcao.erros_detectados,
-          dicas_personalizadas: correcao.dicas_personalizadas,
-          texto_corrigido: correcao.texto_corrigido || textoOriginal
-        }
-        
-        console.log('🎯 Nota final:', correcaoValidada.nota_total)
-        
-        return NextResponse.json(correcaoValidada)
-
-      } catch (err: any) {
-        console.log(`⚠️ Erro:`, err.message)
-        ultimoErro = err
-        continue
-      }
-    }
-
-    // Se nenhum funcionou
-    throw new Error('Nenhum modelo do Gemini está disponível. Gere uma nova API key em: https://aistudio.google.com/app/apikey')
-    
   } catch (error: any) {
-    console.error('💥 ERRO FINAL:', error?.message)
+    console.error('❌ Erro ao corrigir redação:', error)
+    console.error('Stack:', error.stack)
     
-    const fallbackCorrecao: CorrecaoRedacao = {
-      nota_total: 600,
-      notas_competencias: { C1: 120, C2: 100, C3: 120, C4: 120, C5: 140 },
-      comentarios: [
-        "🔴 SUA API KEY DO GEMINI NÃO TEM ACESSO",
-        "📝 SOLUÇÕES:",
-        "1️⃣ Gere nova key em: https://aistudio.google.com/app/apikey",
-        "2️⃣ Aceite os termos de uso no Google AI Studio",
-        "3️⃣ Verifique se Gemini está disponível no seu país",
-        "4️⃣ Use VPN se estiver em região restrita"
-      ],
-      erros_detectados: [
-        "Nenhum modelo Gemini acessível",
-        "Possível restrição regional ou API key inválida"
-      ],
-      dicas_personalizadas: [
-        "🌍 O Gemini pode não estar disponível no Brasil",
-        "🔑 Tente gerar uma NOVA API key",
-        "🔄 Delete a antiga e crie outra",
-        "✅ Ou use OpenRouter (funciona em qualquer país)",
-        "👉 https://openrouter.ai - tem Gemini grátis"
-      ],
-      texto_corrigido: textoOriginal
-    }
-    
-    return NextResponse.json(fallbackCorrecao)
+    return NextResponse.json(
+      { 
+        erro: 'Erro ao processar a correção',
+        detalhes: error.message 
+      },
+      { status: 500 }
+    )
   }
 }
