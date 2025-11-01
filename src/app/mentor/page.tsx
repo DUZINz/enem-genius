@@ -43,7 +43,8 @@ const MessageContent = ({ content }: { content: string }) => {
     processed = processed.replace(/^[•\-]\s+(.*)$/gm, '<li class="ml-4 mb-1">$1</li>')
     
     if (processed.includes('<li')) {
-      processed = processed.replace(/(<li.*?<\/li>)/gs, '<ul class="list-disc ml-4 my-2 space-y-1">$1</ul>')
+      // CORRIGIDO: Separar as flags g e s
+      processed = processed.replace(/(<li.*?<\/li>)/g, '<ul class="list-disc ml-4 my-2 space-y-1">$1</ul>')
     }
     
     processed = processed.replace(/\n\n/g, '</p><p class="mb-2">')

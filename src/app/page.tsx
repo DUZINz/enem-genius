@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { useAuth } from '@/hooks/useAuth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -22,7 +24,8 @@ import {
   PauseCircle,
   Lightbulb,
   ArrowRight,
-  Timer
+  Timer,
+  LogOut
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
@@ -41,27 +44,15 @@ interface Atividade {
   concluida: boolean
 }
 
-interface UserStats {
-  mediaGeral: number
-  totalRedacoes: number
-  totalSimulados: number
-  horasEstudadas: number
-  streak: number
-  nivel: number
-  xpTotal: number
-  atividadesConcluidas: number
-  porcentagemGeral: number
-}
-
-export default function HomePage() {
+function HomeContent() {
   const router = useRouter()
+  const { userProfile, logout, atualizarStats } = useAuth()
   const [atividadeEmAndamento, setAtividadeEmAndamento] = useState<string | null>(null)
   const [tempoDecorrido, setTempoDecorrido] = useState(0)
   const [timerAtivo, setTimerAtivo] = useState(false)
-  const [isLoadingStats, setIsLoadingStats] = useState(true)
 
-  // ⭐ ESTADO DINÂMICO DO USUÁRIO
-  const [stats, setStats] = useState<UserStats>({
+  // ⭐ USAR STATS DO FIREBASE em vez do localStorage
+  const stats = userProfile?.stats || {
     mediaGeral: 0,
     totalRedacoes: 0,
     totalSimulados: 0,
@@ -71,7 +62,7 @@ export default function HomePage() {
     xpTotal: 0,
     atividadesConcluidas: 0,
     porcentagemGeral: 0
-  })
+  }
 
   // Atividades do dia
   const [atividades, setAtividades] = useState<Atividade[]>([
@@ -103,62 +94,6 @@ export default function HomePage() {
       concluida: false
     }
   ])
-
-  // 🔥 CARREGAR DADOS DO USUÁRIO AO INICIAR
-  useEffect(() => {
-    carregarDadosUsuario()
-  }, [])
-
-  const carregarDadosUsuario = async () => {
-    setIsLoadingStats(true)
-    
-    try {
-      // 🔥 Buscar do localStorage primeiro (cache)
-      const cachedStats = localStorage.getItem('userStats')
-      
-      if (cachedStats) {
-        setStats(JSON.parse(cachedStats))
-      } else {
-        // ⭐ Novo usuário: inicializar com valores padrão
-        const initialStats: UserStats = {
-          mediaGeral: 0,
-          totalRedacoes: 0,
-          totalSimulados: 0,
-          horasEstudadas: 0,
-          streak: 0,
-          nivel: 1,
-          xpTotal: 0,
-          atividadesConcluidas: 0,
-          porcentagemGeral: 0
-        }
-        
-        setStats(initialStats)
-        localStorage.setItem('userStats', JSON.stringify(initialStats))
-      }
-
-      // TODO: Em produção, buscar da API
-      // const response = await fetch('/api/user/stats')
-      // const data = await response.json()
-      // setStats(data)
-      
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error)
-    } finally {
-      setIsLoadingStats(false)
-    }
-  }
-
-  // 💾 SALVAR DADOS NO LOCALSTORAGE
-  const salvarStats = (novoStats: UserStats) => {
-    setStats(novoStats)
-    localStorage.setItem('userStats', JSON.stringify(novoStats))
-    
-    // TODO: Em produção, salvar na API
-    // fetch('/api/user/stats', {
-    //   method: 'POST',
-    //   body: JSON.stringify(novoStats)
-    // })
-  }
 
   // Timer
   useEffect(() => {
@@ -205,7 +140,7 @@ export default function HomePage() {
     setTimerAtivo(true)
   }
 
-  const handleConcluirAtividade = (atividadeId: string) => {
+  const handleConcluirAtividade = async (atividadeId: string) => {
     const atividade = atividades.find(a => a.id === atividadeId)
     if (!atividade) return
 
@@ -248,7 +183,7 @@ export default function HomePage() {
         a.id === atividadeId ? { ...a, concluida: true } : a
       ))
       
-      // ⭐ ATUALIZAR STATS DO USUÁRIO
+      // ⭐ ATUALIZAR STATS NO FIREBASE
       const horasGastas = tempoGastoMinutos / 60
       const novoXP = stats.xpTotal + xpCalculado
       const novoNivel = Math.floor(novoXP / 500) + 1
@@ -263,15 +198,15 @@ export default function HomePage() {
         ontem.setDate(ontem.getDate() - 1)
         
         if (ultimoEstudo === ontem.toDateString()) {
-          novoStreak += 1 // Manteve o streak
+          novoStreak += 1
         } else {
-          novoStreak = 1 // Resetou o streak
+          novoStreak = 1
         }
         
         localStorage.setItem('ultimoEstudo', hoje)
       }
       
-      const novosStats: UserStats = {
+      const novosStats = {
         ...stats,
         xpTotal: novoXP,
         nivel: novoNivel,
@@ -281,7 +216,8 @@ export default function HomePage() {
         porcentagemGeral: Math.min(100, stats.porcentagemGeral + 2)
       }
       
-      salvarStats(novosStats)
+      // 🔥 SALVAR NO FIREBASE
+      await atualizarStats(novosStats)
       
       let mensagemFinal = `🎉 Parabéns! Atividade concluída!\n\n`
       mensagemFinal += `⏱️ Tempo: ${tempoGastoMinutos} min\n`
@@ -343,17 +279,6 @@ export default function HomePage() {
     }
   ]
 
-  if (isLoadingStats) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <Brain className="h-16 w-16 text-blue-600 animate-pulse mx-auto mb-4" />
-          <p className="text-lg text-gray-600">Carregando seus dados...</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       {/* Header */}
@@ -367,6 +292,9 @@ export default function HomePage() {
               </h1>
             </div>
             <div className="flex items-center space-x-4">
+              <span className="text-sm text-muted-foreground hidden sm:block">
+                Olá, <span className="font-semibold text-gray-900">{userProfile?.nome || 'Estudante'}</span>
+              </span>
               <div className="flex items-center space-x-2">
                 <Flame className="h-5 w-5 text-orange-500" />
                 <span className="font-bold text-orange-500">{stats.streak} dias</span>
@@ -378,8 +306,12 @@ export default function HomePage() {
               <div className="flex items-center space-x-1 text-sm">
                 <Zap className="h-4 w-4 text-yellow-500" />
                 <span className="font-semibold">{stats.xpTotal}</span>
-                <span className="text-muted-foreground">/ {xpProximoNivel} XP</span>
+                <span className="text-muted-foreground hidden sm:inline">/ {xpProximoNivel} XP</span>
               </div>
+              <Button variant="ghost" size="sm" onClick={logout} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                <LogOut className="h-4 w-4" />
+                <span className="ml-2 hidden sm:inline">Sair</span>
+              </Button>
             </div>
           </div>
         </div>
@@ -418,7 +350,7 @@ export default function HomePage() {
           </Alert>
         )}
 
-        {/* Cards de Estatísticas - DINÂMICOS */}
+        {/* Cards de Estatísticas */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white cursor-pointer hover:shadow-lg transition-shadow">
             <CardContent className="pt-6">
@@ -798,5 +730,14 @@ export default function HomePage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// 🔥 COMPONENTE PRINCIPAL COM PROTEÇÃO
+export default function HomePage() {
+  return (
+    <ProtectedRoute>
+      <HomeContent />
+    </ProtectedRoute>
   )
 }

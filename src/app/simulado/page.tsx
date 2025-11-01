@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -42,16 +42,20 @@ export default function SimuladoPage() {
   const { gerarSimulado, corrigirSimulado, isLoading, erro } = useSimulado()
   const { registrarSimulado } = useUserStats()
 
-  // Timer
-  useState(() => {
+  // ✅ TIMER CORRIGIDO - useEffect em vez de useState
+  useEffect(() => {
     let interval: NodeJS.Timeout
+    
     if (iniciado && !correcao) {
       interval = setInterval(() => {
         setTempoDecorrido(prev => prev + 1)
       }, 1000)
     }
-    return () => clearInterval(interval)
-  })
+    
+    return () => {
+      if (interval) clearInterval(interval)
+    }
+  }, [iniciado, correcao])
 
   const formatarTempo = (segundos: number) => {
     const horas = Math.floor(segundos / 3600)
@@ -85,6 +89,26 @@ export default function SimuladoPage() {
       setCorrecao(resultado)
       setActiveTab('resultado')
       setIniciado(false)
+
+      // 🎯 REGISTRAR NO SISTEMA GLOBAL
+      const notaFinal = resultado.notaTotal
+      const tempoTotalMinutos = Math.floor(tempoDecorrido / 60)
+      const resultadoStats = registrarSimulado(notaFinal, tempoTotalMinutos)
+      
+      // Feedback ao usuário
+      const horas = Math.floor(tempoDecorrido / 3600)
+      const minutos = Math.floor((tempoDecorrido % 3600) / 60)
+      const tempoFormatado = horas > 0 
+        ? `${horas}h ${minutos}min` 
+        : `${minutos}min`
+      
+      alert(
+        `🎉 Simulado concluído!\n\n` +
+        `📊 Nota: ${notaFinal}/1000\n` +
+        `⏱️ Tempo: ${tempoFormatado}\n` +
+        `✅ Acertos: ${resultado.acertos}/${simuladoAtual.totalQuestoes}\n` +
+        `✨ +${resultadoStats.xpGanho} XP`
+      )
     }
   }
 
@@ -98,22 +122,6 @@ export default function SimuladoPage() {
     setAreasEscolhidas(prev => 
       prev.includes(area) ? prev.filter(a => a !== area) : [...prev, area]
     )
-  }
-
-  const handleFinalizarSimulado = async () => {
-    if (!simuladoAtual) return
-
-    // Calcular nota final (exemplo: soma das notas das questões)
-    const notaFinal = correcao.acertos * 10 // Apenas um exemplo, ajuste conforme a lógica real
-
-    // 🎯 REGISTRAR NO SISTEMA GLOBAL
-    const tempoTotal = Math.floor((Date.now().getTime() - tempoDecorrido) / 1000 / 60) // em minutos
-    const resultado = registrarSimulado(notaFinal, tempoTotal)
-    
-    alert(`🎉 Simulado concluído!\n\nNota: ${notaFinal}\n+${resultado.xpGanho} XP`)
-    
-    // Navegar para resultado
-    // router.push(`/simulado/resultado?nota=${notaFinal}`)
   }
 
   return (
