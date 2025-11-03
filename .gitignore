@@ -1,0 +1,39 @@
+# Dependências
+node_modules/
+/.pnp
+.pnp.js
+
+# Testes
+/coverage
+
+# Next.js
+/.next/
+/out/
+
+# Produção
+/build
+
+# Diversos
+.DS_Store
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Variáveis de ambiente locais
+.env.local
+.env
+.env.Production
+
+# Chaves do Firebase
+*.json
+enem-genius-firebase-adminsdk-fbsvc-ca991ce91f.json
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
