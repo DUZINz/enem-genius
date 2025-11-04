@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -56,7 +56,7 @@ interface Simulado {
 
 function SimuladoContent() {
   const router = useRouter()
-  const { user, userProfile, atualizarStats } = useAuth()
+  const { user } = useAuth()
   const [simulados, setSimulados] = useState<Simulado[]>([])
   const [simuladoAtual, setSimuladoAtual] = useState<Simulado | null>(null)
   const [questaoAtual, setQuestaoAtual] = useState(0)
@@ -262,22 +262,7 @@ function SimuladoContent() {
 
       await addDoc(collection(db, 'simulados'), simuladoFinalizado)
 
-      if (userProfile) {
-        const novosStats = {
-          ...userProfile.stats,
-          totalSimulados: userProfile.stats.totalSimulados + 1,
-          xpTotal: userProfile.stats.xpTotal + (nota >= 700 ? 150 : 100),
-          nivel: Math.floor((userProfile.stats.xpTotal + 100) / 500) + 1,
-          mediaGeral: Math.round(
-            ((userProfile.stats.mediaGeral * (userProfile.stats.totalRedacoes + userProfile.stats.totalSimulados)) + nota) / 
-            (userProfile.stats.totalRedacoes + userProfile.stats.totalSimulados + 1)
-          )
-        }
-
-        await atualizarStats(novosStats)
-      }
-
-      alert(`🎉 Simulado Finalizado!\n\n✅ Acertos: ${acertos}/${simuladoAtual.questoes.length}\n📊 Nota: ${nota}/1000\n⏱️ Tempo: ${Math.floor(tempoDecorrido / 60)}min ${tempoDecorrido % 60}s\n✨ +${nota >= 700 ? 150 : 100} XP`)
+      alert(`🎉 Simulado Finalizado!\n\n✅ Acertos: ${acertos}/${simuladoAtual.questoes.length}\n📊 Nota: ${nota}/1000\n⏱️ Tempo: ${Math.floor(tempoDecorrido / 60)}min ${tempoDecorrido % 60}s`)
 
       const q = query(collection(db, 'simulados'), where('userId', '==', user.uid))
       const querySnapshot = await getDocs(q)
@@ -343,7 +328,7 @@ function SimuladoContent() {
                   <div>
                     <h1 className="text-xl font-bold text-gray-900">Simulados IA</h1>
                     <p className="text-xs text-muted-foreground">
-                      {userProfile?.stats.totalSimulados || 0} simulados realizados
+                      {simulados.filter(s => s.status === 'finalizado').length} simulados realizados
                     </p>
                   </div>
                 </div>

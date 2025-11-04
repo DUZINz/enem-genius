@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -54,16 +54,7 @@ interface Redacao {
 
 function RedacaoContent() {
   const router = useRouter()
-  const { user, userProfile, atualizarStats } = useAuth()
-  
-  // 🔹 ADICIONE ESSAS LINHAS
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
-      </div>
-    )
-  }
+  const { user, loading } = useAuth()
   
   const [redacoes, setRedacoes] = useState<Redacao[]>([])
   const [redacaoAtual, setRedacaoAtual] = useState<Redacao | null>(null)
@@ -71,7 +62,6 @@ function RedacaoContent() {
   const [tema, setTema] = useState('')
   const [isCorrigindo, setIsCorrigindo] = useState(false)
   const [mostrarCorrecao, setMostrarCorrecao] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
 
   // ✅ TEMAS EXPANDIDOS - REAIS DO ENEM + GENÉRICOS
   const temasDisponiveis = [
@@ -180,8 +170,6 @@ function RedacaoContent() {
         console.log('✅ Redações carregadas:', redacoesData.length)
       } catch (error) {
         console.error('❌ Erro ao carregar redações:', error)
-      } finally {
-        setIsLoading(false)
       }
     }
 
@@ -288,21 +276,6 @@ function RedacaoContent() {
       setRedacaoAtual(redacaoComId)
       setMostrarCorrecao(true)
 
-      if (userProfile) {
-        const novosStats = {
-          ...userProfile.stats,
-          totalRedacoes: userProfile.stats.totalRedacoes + 1,
-          xpTotal: userProfile.stats.xpTotal + (resultado.notaFinal >= 700 ? 150 : 100),
-          nivel: Math.floor((userProfile.stats.xpTotal + 100) / 500) + 1,
-          mediaGeral: Math.round(
-            ((userProfile.stats.mediaGeral * (userProfile.stats.totalRedacoes + userProfile.stats.totalSimulados)) + resultado.notaFinal) / 
-            (userProfile.stats.totalRedacoes + userProfile.stats.totalSimulados + 1)
-          )
-        }
-
-        await atualizarStats(novosStats)
-      }
-
       const q = query(collection(db, 'redacoes'), where('userId', '==', user.uid))
       const querySnapshot = await getDocs(q)
       const redacoesData: Redacao[] = []
@@ -316,7 +289,7 @@ function RedacaoContent() {
       
       setRedacoes(redacoesData)
 
-      console.log('✅ Redação salva e stats atualizados')
+      console.log('✅ Redação salva')
     } catch (error: any) {
       console.error('❌ Erro ao corrigir redação:', error)
       alert('Erro ao corrigir redação: ' + error.message)
@@ -344,14 +317,6 @@ function RedacaoContent() {
     if (nota >= 120) return 'bg-blue-600'
     if (nota >= 80) return 'bg-yellow-600'
     return 'bg-red-600'
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
-      </div>
-    )
   }
 
   if (mostrarCorrecao && redacaoAtual) {
@@ -489,7 +454,7 @@ function RedacaoContent() {
                 <div>
                   <h1 className="text-xl font-bold text-gray-900">Redação IA</h1>
                   <p className="text-xs text-muted-foreground">
-                    {userProfile?.stats.totalRedacoes || 0} redações corrigidas
+                    {redacoes.filter(r => r.status === 'corrigida').length} redações corrigidas
                   </p>
                 </div>
               </div>
