@@ -55,6 +55,16 @@ interface Redacao {
 function RedacaoContent() {
   const router = useRouter()
   const { user, userProfile, atualizarStats } = useAuth()
+  
+  // 🔹 ADICIONE ESSAS LINHAS
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+      </div>
+    )
+  }
+  
   const [redacoes, setRedacoes] = useState<Redacao[]>([])
   const [redacaoAtual, setRedacaoAtual] = useState<Redacao | null>(null)
   const [texto, setTexto] = useState('')
