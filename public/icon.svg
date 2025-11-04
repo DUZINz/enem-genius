@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="brain" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7c3aed"/>
+      <stop offset="100%" style="stop-color:#5b21b6"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Fundo -->
+  <rect width="512" height="512" rx="110" fill="url(#brain)"/>
+  
+  <!-- Cérebro estilizado -->
+  <ellipse cx="256" cy="220" rx="120" ry="130" fill="#ffffff" opacity="0.9"/>
+  
+  <!-- Circuitos/conexões neurais -->
+  <circle cx="200" cy="180" r="15" fill="#fbbf24"/>
+  <circle cx="312" cy="180" r="15" fill="#fbbf24"/>
+  <circle cx="256" cy="250" r="15" fill="#fbbf24"/>
+  
+  <line x1="200" y1="180" x2="256" y2="250" stroke="#8b5cf6" stroke-width="6"/>
+  <line x1="312" y1="180" x2="256" y2="250" stroke="#8b5cf6" stroke-width="6"/>
+  
+  <!-- Texto "E" grande embaixo -->
+  <text x="256" y="420" font-family="Arial, sans-serif" font-weight="900" font-size="180" fill="#ffffff" text-anchor="middle">E</text>
+</svg>

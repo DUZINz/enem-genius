@@ -9,8 +9,14 @@ import { Toaster } from "@/components/ui/toaster";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "ENEM Genius - Plataforma de Estudos",
-  description: "Prepare-se para o ENEM com IA",
+  title: "ENEM Genius - Plataforma de Estudos com IA",
+  description:
+    "Prepare-se para o ENEM com inteligência artificial. Simulados personalizados, correção de redações e planos de estudo inteligentes.",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
@@ -20,6 +26,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+      </head>
       <body className={inter.className}>
         <ThemeProvider
           attribute="class"
