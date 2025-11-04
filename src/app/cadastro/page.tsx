@@ -86,6 +86,11 @@ export default function CadastroPage() {
         valorPago: dataVerificar.valorPago || 97,
         dataCadastro: serverTimestamp(),
         uid: user.uid,
+        xp: 0,
+        nivel: 1,
+        totalRedacoes: 0,
+        totalSimulados: 0,
+        totalQuestoes: 0,
       })
       console.log('✅ Documento do usuário criado')
 
