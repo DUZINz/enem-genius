@@ -25,7 +25,8 @@ import {
   BookOpen,
   Home,
   ArrowLeft,
-  XCircle
+  XCircle,
+  Trophy
 } from 'lucide-react'
 import { collection, addDoc, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -443,12 +444,14 @@ function RedacaoContent() {
             <div className="flex items-center space-x-4">
               <Button
                 variant="ghost"
-                size="icon"
-                onClick={() => router.push('/')}
-                className="hover:bg-gray-100"
+                size="sm"
+                onClick={() => router.push('/biblioteca')}
+                className="text-muted-foreground hover:text-foreground"
               >
-                <ArrowLeft className="h-5 w-5" />
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Voltar
               </Button>
+              
               <div className="flex items-center space-x-2">
                 <Sparkles className="h-8 w-8 text-purple-600" />
                 <div>
@@ -459,14 +462,18 @@ function RedacaoContent() {
                 </div>
               </div>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => router.push('/')}
-              className="gap-2"
-            >
-              <Home className="h-4 w-4" />
-              <span className="hidden sm:inline">Página Inicial</span>
-            </Button>
+            
+            {redacaoAtual && (
+              <div className="flex items-center space-x-2 bg-purple-50 px-4 py-2 rounded-lg">
+                <Trophy className="h-5 w-5 text-purple-600" />
+                <div className="text-right">
+                  <div className="text-xs text-muted-foreground">Nota</div>
+                  <div className="text-lg font-bold text-purple-600">
+                    {redacaoAtual.notaFinal}/1000
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>

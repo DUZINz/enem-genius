@@ -33,62 +33,82 @@ TEMA: ${tema}
 REDAÇÃO:
 ${redacao}
 
-IMPORTANTE: Responda APENAS com um JSON válido, sem markdown, sem explicações adicionais. O JSON deve ter exatamente esta estrutura:
+AVALIE COM RIGOR E HONESTIDADE, dando notas reais baseadas na qualidade do texto.
+
+COMPETÊNCIAS DO ENEM:
+1. Domínio da norma padrão da língua portuguesa (0-200)
+2. Compreensão da proposta de redação e aplicação de conceitos (0-200)
+3. Seleção, relacionamento, organização e interpretação de informações (0-200)
+4. Conhecimento dos mecanismos linguísticos para construção da argumentação (0-200)
+5. Elaboração de proposta de intervenção para o problema (0-200)
+
+CRITÉRIOS DE AVALIAÇÃO:
+- 0-40 pontos: Desempenho insuficiente
+- 40-80 pontos: Desempenho mediano inferior
+- 80-120 pontos: Desempenho mediano
+- 120-160 pontos: Desempenho bom
+- 160-200 pontos: Desempenho excelente
+
+Responda APENAS com um JSON válido seguindo EXATAMENTE esta estrutura:
 
 {
-  "notaFinal": 850,
+  "notaFinal": [SOMA DAS 5 COMPETÊNCIAS],
   "competencias": [
     {
       "numero": 1,
-      "titulo": "Domínio da norma padrão",
-      "nota": 180,
-      "feedback": "Excelente domínio da norma culta..."
+      "titulo": "Domínio da norma padrão da língua portuguesa",
+      "nota": [0-200],
+      "feedback": "[Avaliação detalhada desta competência]"
     },
     {
       "numero": 2,
-      "titulo": "Compreensão do tema",
-      "nota": 160,
-      "feedback": "Boa compreensão do tema..."
+      "titulo": "Compreensão da proposta de redação",
+      "nota": [0-200],
+      "feedback": "[Avaliação detalhada desta competência]"
     },
     {
       "numero": 3,
       "titulo": "Seleção e organização de argumentos",
-      "nota": 180,
-      "feedback": "Argumentos bem organizados..."
+      "nota": [0-200],
+      "feedback": "[Avaliação detalhada desta competência]"
     },
     {
       "numero": 4,
-      "titulo": "Coesão textual",
-      "nota": 160,
-      "feedback": "Boa coesão entre parágrafos..."
+      "titulo": "Conhecimento dos mecanismos linguísticos",
+      "nota": [0-200],
+      "feedback": "[Avaliação detalhada desta competência]"
     },
     {
       "numero": 5,
-      "titulo": "Proposta de intervenção",
-      "nota": 170,
-      "feedback": "Proposta bem detalhada..."
+      "titulo": "Elaboração de proposta de intervenção",
+      "nota": [0-200],
+      "feedback": "[Avaliação detalhada desta competência]"
     }
   ],
   "pontosFortesGerais": [
-    "Excelente estrutura dissertativa",
-    "Argumentação consistente",
-    "Boa proposta de intervenção"
+    "[Ponto forte 1]",
+    "[Ponto forte 2]",
+    "[Ponto forte 3]"
   ],
   "pontosAMelhorarGerais": [
-    "Algumas repetições vocabulares",
-    "Conectivos poderiam ser mais variados"
+    "[Ponto a melhorar 1]",
+    "[Ponto a melhorar 2]"
   ],
-  "sugestoesGerais": "Continue praticando a variedade vocabular e explore mais conectivos para enriquecer ainda mais seu texto."
+  "sugestoesGerais": "[Sugestões específicas para melhorar]"
 }
 
-REGRAS:
+REGRAS IMPORTANTES:
 - Cada competência vale de 0 a 200 pontos
-- notaFinal é a soma das 5 competências (0 a 1000)
+- notaFinal é a SOMA das 5 competências (0 a 1000)
+- Seja JUSTO e CRITERIOSO: não dê notas altas sem justificativa
+- Se a redação for ruim, dê nota baixa (200-500)
+- Se for mediana, dê nota média (500-750)
+- Se for excelente, dê nota alta (750-1000)
 - Responda APENAS o JSON, sem texto antes ou depois
-- Não use markdown
+- Não use markdown (sem \`\`\`json)
 - Use aspas duplas
 - Não deixe campos vazios
-- SEMPRE preencha os arrays pontosFortesGerais e pontosAMelhorarGerais`
+- SEMPRE preencha os arrays`
 
     console.log('🤖 Enviando para Gemini 2.0 Flash...')
 
@@ -122,7 +142,7 @@ REGRAS:
       }
     }
 
-    // ✅ VALIDAÇÃO CORRIGIDA - Aceitar nota 0
+    // Validação
     if (typeof correcao.notaFinal !== 'number' || !Array.isArray(correcao.competencias)) {
       console.error('❌ Estrutura inválida:', {
         notaFinal: correcao.notaFinal,
@@ -146,7 +166,7 @@ REGRAS:
       }
     }
 
-    // ✅ GARANTIR ARRAYS VAZIOS EM VEZ DE UNDEFINED
+    // Garantir arrays
     if (!Array.isArray(correcao.pontosFortesGerais)) {
       console.log('⚠️ pontosFortesGerais inválido, criando array vazio')
       correcao.pontosFortesGerais = []
@@ -162,7 +182,7 @@ REGRAS:
       correcao.sugestoesGerais = 'Continue praticando para melhorar suas habilidades de escrita.'
     }
 
-    // ✅ SE ARRAYS ESTIVEREM VAZIOS E NOTA FOR 0, ADICIONAR MENSAGENS PADRÃO
+    // Se nota for 0, adicionar mensagens padrão
     if (correcao.notaFinal === 0) {
       if (correcao.pontosFortesGerais.length === 0) {
         correcao.pontosFortesGerais = ['Esta é uma oportunidade de aprendizado']
