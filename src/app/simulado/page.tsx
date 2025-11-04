@@ -4,40 +4,44 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Brain,
-  Clock,
-  CheckCircle2,
-  XCircle,
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { 
+  Brain, 
+  Target, 
+  Clock, 
+  CheckCircle2, 
+  XCircle, 
+  AlertCircle,
   Loader2,
-  Play,
-  Award,
-  BookOpen,
-  Target,
-  TrendingUp,
+  ChevronLeft,
+  ChevronRight,
   Home,
-  ArrowLeft
+  BookOpen,
+  TrendingUp,
+  Award,
+  ArrowLeft,
+  Play
 } from 'lucide-react'
 import { collection, addDoc, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
 interface Questao {
   id: string
+  numero: number
   enunciado: string
   alternativas: string[]
   respostaCorreta: number
-  explicacao: string
   disciplina: string
-  dificuldade: 'facil' | 'medio' | 'dificil'
+  dificuldade: string
 }
 
 interface Simulado {
@@ -52,6 +56,31 @@ interface Simulado {
   status: 'em-andamento' | 'finalizado'
   dataCriacao: string
   dataFinalizacao?: string
+  analise?: AnaliseSimulado
+}
+
+interface AnaliseSimulado {
+  notaFinal: number
+  acertos: number
+  erros: number
+  emBranco: number
+  tempoTotal: number
+  desempenhoPorDisciplina: {
+    disciplina: string
+    acertos: number
+    total: number
+    percentual: number
+  }[]
+  questoesErradas: {
+    numero: number
+    disciplina: string
+    respostaCorreta: number
+    respostaDada: number | null
+    enunciado: string
+  }[]
+  pontosFracos: string[]
+  pontosFortes: string[]
+  recomendacoes: string[]
 }
 
 function SimuladoContent() {
@@ -61,12 +90,14 @@ function SimuladoContent() {
   const [simuladoAtual, setSimuladoAtual] = useState<Simulado | null>(null)
   const [questaoAtual, setQuestaoAtual] = useState(0)
   const [respostas, setRespostas] = useState<(number | null)[]>([])
-  const [isGerando, setIsGerando] = useState(false)
   const [tempoDecorrido, setTempoDecorrido] = useState(0)
   const [timerAtivo, setTimerAtivo] = useState(false)
-  
-  // Configuração do simulado
   const [disciplinasSelecionadas, setDisciplinasSelecionadas] = useState<string[]>([])
+  const [isGerando, setIsGerando] = useState(false)
+  const [mostrarResultado, setMostrarResultado] = useState(false)
+  const [analisando, setAnalisando] = useState(false)
+
+  // Configuração do simulado
   const [quantidadeQuestoes, setQuantidadeQuestoes] = useState<number>(10)
 
   const disciplinas = [
@@ -149,7 +180,7 @@ function SimuladoContent() {
   }
 
   const handleGerarSimulado = async () => {
-    if (!user || disciplinasSelecionadas.length === 0) {
+    if (disciplinasSelecionadas.length === 0) {
       alert('Selecione pelo menos uma disciplina')
       return
     }
@@ -157,61 +188,45 @@ function SimuladoContent() {
     setIsGerando(true)
 
     try {
-      console.log('📝 Gerando simulado com:', {
-        disciplinas: disciplinasSelecionadas,
-        quantidade: quantidadeQuestoes
+      const response = await fetch('/api/simulado/gerar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          disciplinas: disciplinasSelecionadas,
+          quantidade: 5
+        })
       })
 
-      const disciplinasNomes = disciplinasSelecionadas.map(id => 
-        disciplinas.find(d => d.id === id)?.nome
-      ).filter(Boolean)
+      if (!response.ok) throw new Error('Erro ao gerar simulado')
 
-      const todasQuestoes: Questao[] = []
-
-      for (const disciplina of disciplinasNomes) {
-        const questoesPorDisciplina = Math.ceil(quantidadeQuestoes / disciplinasNomes.length)
-        
-        const response = await fetch('/api/simulado/gerar', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            disciplina, 
-            quantidade: questoesPorDisciplina 
-          })
-        })
-
-        if (!response.ok) {
-          throw new Error(`Erro ao gerar questões de ${disciplina}`)
-        }
-
-        const { questoes } = await response.json()
-        todasQuestoes.push(...questoes)
-      }
-
-      const questoesSelecionadas = todasQuestoes.slice(0, quantidadeQuestoes)
-
-      console.log('✅ Total de questões geradas:', questoesSelecionadas.length)
+      const data = await response.json()
+      
+      // ✅ GARANTIR QUE TODAS AS QUESTÕES TÊM NUMERO
+      const questoesComNumero = data.questoes.map((q: Questao, index: number) => ({
+        ...q,
+        numero: q.numero || (index + 1) // Se não tiver numero, adiciona baseado no index
+      }))
 
       const novoSimulado: Simulado = {
         id: '',
-        userId: user.uid,
-        disciplinas: disciplinasNomes as string[],
-        questoes: questoesSelecionadas,
-        respostas: new Array(questoesSelecionadas.length).fill(null),
+        userId: user!.uid,
+        disciplinas: disciplinasSelecionadas,
+        questoes: questoesComNumero,
+        respostas: Array(questoesComNumero.length).fill(null),
         status: 'em-andamento',
         dataCriacao: new Date().toISOString()
       }
 
       setSimuladoAtual(novoSimulado)
-      setRespostas(new Array(questoesSelecionadas.length).fill(null))
+      setRespostas(Array(questoesComNumero.length).fill(null))
       setQuestaoAtual(0)
       setTempoDecorrido(0)
       setTimerAtivo(true)
 
-      console.log('✅ Simulado iniciado')
-    } catch (error: any) {
+      console.log('✅ Simulado gerado com questões numeradas')
+    } catch (error) {
       console.error('❌ Erro ao gerar simulado:', error)
-      alert('Erro ao gerar simulado: ' + error.message)
+      alert('Erro ao gerar simulado')
     } finally {
       setIsGerando(false)
     }
@@ -239,65 +254,214 @@ function SimuladoContent() {
     if (!simuladoAtual || !user) return
 
     setTimerAtivo(false)
-
-    let acertos = 0
-    simuladoAtual.questoes.forEach((questao, index) => {
-      if (respostas[index] === questao.respostaCorreta) {
-        acertos++
-      }
-    })
-
-    const nota = Math.round((acertos / simuladoAtual.questoes.length) * 1000)
+    setAnalisando(true)
 
     try {
-      const simuladoFinalizado = {
-        ...simuladoAtual,
-        respostas,
-        nota,
-        acertos,
-        tempo: tempoDecorrido,
-        status: 'finalizado',
-        dataFinalizacao: new Date().toISOString()
+      // Preparar respostas no formato correto
+      const respostasFormatadas = simuladoAtual.questoes.map((questao, index) => ({
+        questaoId: questao.id,
+        respostaMarcada: respostas[index] !== null 
+          ? String.fromCharCode(65 + respostas[index]) // 0 -> 'A', 1 -> 'B', etc
+          : null
+      }))
+
+      console.log('🔍 Enviando para correção...')
+
+      // Chamar API de correção (que já faz a análise)
+      const correcaoResponse = await fetch('/api/simulado/corrigir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questoes: simuladoAtual.questoes,
+          respostas: respostasFormatadas
+        })
+      })
+
+      if (!correcaoResponse.ok) {
+        throw new Error('Erro ao corrigir simulado')
       }
 
-      await addDoc(collection(db, 'simulados'), simuladoFinalizado)
+      const correcao = await correcaoResponse.json()
+      console.log('✅ Correção recebida:', correcao)
 
-      alert(`🎉 Simulado Finalizado!\n\n✅ Acertos: ${acertos}/${simuladoAtual.questoes.length}\n📊 Nota: ${nota}/1000\n⏱️ Tempo: ${Math.floor(tempoDecorrido / 60)}min ${tempoDecorrido % 60}s`)
+      // Montar análise
+      const analise: AnaliseSimulado = {
+        notaFinal: correcao.notaTotal,
+        acertos: correcao.acertos,
+        erros: correcao.erros,
+        emBranco: correcao.emBranco,
+        tempoTotal: tempoDecorrido,
+        desempenhoPorDisciplina: Object.entries(correcao.notaPorArea).map(([area, nota]) => {
+          const questoesArea = simuladoAtual.questoes.filter(q => q.disciplina === area)
+          const acertosArea = questoesArea.filter((q) => {
+            const questaoIndex = simuladoAtual.questoes.indexOf(q)
+            return respostas[questaoIndex] === q.respostaCorreta
+          }).length
 
-      const q = query(collection(db, 'simulados'), where('userId', '==', user.uid))
-      const querySnapshot = await getDocs(q)
-      const simuladosData: Simulado[] = []
-      querySnapshot.forEach((doc) => {
-        const data = doc.data()
-        const disciplinasArray = Array.isArray(data.disciplinas) 
-          ? data.disciplinas 
-          : data.disciplina 
-          ? [data.disciplina] 
-          : ['Geral']
-        
-        simuladosData.push({ 
-          id: doc.id, 
-          ...data,
-          disciplinas: disciplinasArray
-        } as Simulado)
+          return {
+            disciplina: area.charAt(0).toUpperCase() + area.slice(1),
+            acertos: acertosArea,
+            total: questoesArea.length,
+            percentual: Math.round((acertosArea / questoesArea.length) * 100)
+          }
+        }),
+        questoesErradas: correcao.questoesErradas.map((q: any) => {
+          const gabaritoCorreto = q.gabaritoCorreto || q.respostaCorreta || 'A'
+          const respostaMarcada = q.respostaMarcada || null
+
+          let respostaCorretaNum: number
+          if (typeof gabaritoCorreto === 'string') {
+            respostaCorretaNum = gabaritoCorreto.charCodeAt(0) - 65
+          } else {
+            respostaCorretaNum = gabaritoCorreto
+          }
+
+          let respostaDadaNum: number | null = null
+          if (respostaMarcada !== null) {
+            if (typeof respostaMarcada === 'string') {
+              respostaDadaNum = respostaMarcada.charCodeAt(0) - 65
+            } else {
+              respostaDadaNum = respostaMarcada
+            }
+          }
+
+          return {
+            numero: q.numero,
+            disciplina: q.disciplina,
+            respostaCorreta: respostaCorretaNum,
+            respostaDada: respostaDadaNum,
+            enunciado: simuladoAtual.questoes.find(quest => quest.numero === q.numero)?.enunciado || ''
+          }
+        }),
+        pontosFracos: correcao.pontosFracos || ['Áreas que precisam de atenção'],
+        pontosFortes: correcao.pontoFortes || ['Continue praticando'],
+        recomendacoes: correcao.recomendacoes || ['Revise as questões erradas']
+      }
+
+      // ✅ LIMPAR CAMPOS UNDEFINED ANTES DE SALVAR
+      const simuladoFinalizado = {
+        userId: user.uid,
+        disciplinas: simuladoAtual.disciplinas,
+        questoes: simuladoAtual.questoes.map(q => ({
+          id: q.id,
+          numero: q.numero,
+          enunciado: q.enunciado,
+          alternativas: q.alternativas,
+          respostaCorreta: q.respostaCorreta,
+          disciplina: q.disciplina,
+          dificuldade: q.dificuldade
+        })),
+        respostas: respostas,
+        nota: correcao.notaTotal,
+        acertos: correcao.acertos,
+        tempo: tempoDecorrido,
+        status: 'finalizado' as const,
+        dataCriacao: simuladoAtual.dataCriacao,
+        dataFinalizacao: new Date().toISOString(),
+        analise: {
+          notaFinal: analise.notaFinal,
+          acertos: analise.acertos,
+          erros: analise.erros,
+          emBranco: analise.emBranco,
+          tempoTotal: analise.tempoTotal,
+          desempenhoPorDisciplina: analise.desempenhoPorDisciplina,
+          questoesErradas: analise.questoesErradas,
+          pontosFracos: analise.pontosFracos,
+          pontosFortes: analise.pontosFortes,
+          recomendacoes: analise.recomendacoes
+        }
+      }
+
+      // ✅ ADICIONAR ESTE LOG ANTES DE SALVAR:
+      console.log('🔍 Verificando campos undefined:')
+      console.log('simuladoFinalizado:', JSON.stringify(simuladoFinalizado, null, 2))
+      
+      // Verificar cada campo manualmente
+      const camposUndefined = []
+      
+      if (simuladoFinalizado.userId === undefined) camposUndefined.push('userId')
+      if (simuladoFinalizado.disciplinas === undefined) camposUndefined.push('disciplinas')
+      if (simuladoFinalizado.questoes === undefined) camposUndefined.push('questoes')
+      if (simuladoFinalizado.respostas === undefined) camposUndefined.push('respostas')
+      if (simuladoFinalizado.nota === undefined) camposUndefined.push('nota')
+      if (simuladoFinalizado.acertos === undefined) camposUndefined.push('acertos')
+      if (simuladoFinalizado.tempo === undefined) camposUndefined.push('tempo')
+      if (simuladoFinalizado.status === undefined) camposUndefined.push('status')
+      if (simuladoFinalizado.dataCriacao === undefined) camposUndefined.push('dataCriacao')
+      if (simuladoFinalizado.dataFinalizacao === undefined) camposUndefined.push('dataFinalizacao')
+      if (simuladoFinalizado.analise === undefined) camposUndefined.push('analise')
+      
+      // Verificar questões
+      simuladoFinalizado.questoes.forEach((q: any, idx: number) => {
+        Object.keys(q).forEach(key => {
+          if (q[key] === undefined) {
+            camposUndefined.push(`questoes[${idx}].${key}`)
+          }
+        })
       })
       
-      simuladosData.sort((a, b) => 
-        new Date(b.dataCriacao).getTime() - new Date(a.dataCriacao).getTime()
-      )
+      // Verificar análise
+      if (simuladoFinalizado.analise) {
+        Object.keys(simuladoFinalizado.analise).forEach(key => {
+          if ((simuladoFinalizado.analise as any)[key] === undefined) {
+            camposUndefined.push(`analise.${key}`)
+          }
+        })
+      }
       
-      setSimulados(simuladosData)
+      if (camposUndefined.length > 0) {
+        console.error('❌ CAMPOS UNDEFINED ENCONTRADOS:', camposUndefined)
+        alert('Erro: Campos undefined: ' + camposUndefined.join(', '))
+        setAnalisando(false)
+        return
+      }
 
-      setSimuladoAtual(null)
-      setRespostas([])
-      setQuestaoAtual(0)
-      setTempoDecorrido(0)
-      setDisciplinasSelecionadas([])
+      console.log('✅ Nenhum campo undefined, salvando...')
 
-      console.log('✅ Simulado finalizado')
+      try {
+        await addDoc(collection(db, 'simulados'), simuladoFinalizado)
+        console.log('✅ Salvo com sucesso!')
+        
+        // Atualizar lista
+        const q = query(collection(db, 'simulados'), where('userId', '==', user.uid))
+        const querySnapshot = await getDocs(q)
+        const simuladosData: Simulado[] = []
+        querySnapshot.forEach((doc) => {
+          const data = doc.data()
+          const disciplinasArray = Array.isArray(data.disciplinas) 
+            ? data.disciplinas 
+            : data.disciplina 
+            ? [data.disciplina] 
+            : ['Geral']
+          
+          simuladosData.push({ 
+            id: doc.id, 
+            ...data,
+            disciplinas: disciplinasArray
+          } as Simulado)
+        })
+        
+        simuladosData.sort((a, b) => 
+          new Date(b.dataCriacao).getTime() - new Date(a.dataCriacao).getTime()
+        )
+        
+        setSimulados(simuladosData)
+
+        setSimuladoAtual({ ...simuladoAtual, analise })
+        setMostrarResultado(true)
+
+        console.log('✅ Simulado finalizado e salvo')
+      } catch (error) {
+        console.error('❌ Erro ao salvar:', error)
+        alert('Erro ao finalizar simulado: ' + (error as Error).message)
+      } finally {
+        setAnalisando(false)
+      }
     } catch (error) {
       console.error('❌ Erro ao finalizar simulado:', error)
-      alert('Erro ao finalizar simulado')
+      alert('Erro ao finalizar simulado: ' + (error as Error).message)
+    } finally {
+      setAnalisando(false)
     }
   }
 
@@ -494,6 +658,212 @@ function SimuladoContent() {
               )}
             </TabsContent>
           </Tabs>
+        </div>
+      </div>
+    )
+  }
+
+  // ✅ ADICIONAR ESTA TELA DE RESULTADO ANTES DO RETURN DO SIMULADO EM ANDAMENTO
+  if (mostrarResultado && simuladoAtual?.analise) {
+    const { analise } = simuladoAtual
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setMostrarResultado(false)
+                  setSimuladoAtual(null)
+                  setRespostas([])
+                  setQuestaoAtual(0)
+                  setTempoDecorrido(0)
+                }}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Novo Simulado
+              </Button>
+
+              <div className="flex items-center space-x-2">
+                <Award className="h-8 w-8 text-yellow-500" />
+                <div>
+                  <h1 className="text-xl font-bold">Resultado do Simulado</h1>
+                </div>
+              </div>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push('/')}
+              >
+                <Home className="h-4 w-4 mr-2" />
+                Início
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        <div className="max-w-5xl mx-auto p-6 space-y-6">
+          {/* Nota Final */}
+          <Card className="border-2 border-blue-500 shadow-lg">
+            <CardHeader className="text-center bg-gradient-to-r from-blue-50 to-purple-50">
+              <CardTitle className="text-3xl">
+                <div className="flex items-center justify-center gap-3 mb-2">
+                  <Award className="h-10 w-10 text-yellow-500" />
+                  <span>Nota Final</span>
+                </div>
+              </CardTitle>
+              <div className="text-6xl font-bold text-blue-600 my-4">
+                {analise.notaFinal}
+                <span className="text-2xl text-muted-foreground">/1000</span>
+              </div>
+              <div className="flex justify-center gap-6 text-sm">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  <span>{analise.acertos} acertos</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <XCircle className="h-5 w-5 text-red-500" />
+                  <span>{analise.erros} erros</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-yellow-500" />
+                  <span>{analise.emBranco} em branco</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-blue-500" />
+                  <span>{Math.floor(analise.tempoTotal / 60)}min</span>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+
+          {/* Desempenho por Disciplina */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Desempenho por Disciplina
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {analise.desempenhoPorDisciplina.map((desemp, idx) => (
+                <div key={idx}>
+                  <div className="flex justify-between mb-2">
+                    <span className="font-medium">{desemp.disciplina}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {desemp.acertos}/{desemp.total} ({desemp.percentual}%)
+                    </span>
+                  </div>
+                  <Progress value={desemp.percentual} className="h-2" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Questões Erradas */}
+          {analise.questoesErradas.length > 0 && (
+            <Card className="border-red-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-red-600">
+                  <XCircle className="h-5 w-5" />
+                  Questões que você errou ({analise.questoesErradas.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {analise.questoesErradas.slice(0, 10).map((questao, idx) => (
+                  <div key={idx} className="p-4 bg-red-50 rounded-lg border border-red-200">
+                    <div className="flex justify-between items-start mb-2">
+                      <Badge variant="outline" className="text-red-600 border-red-300">
+                        Questão {questao.numero}
+                      </Badge>
+                      <Badge variant="secondary">{questao.disciplina}</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      {questao.enunciado.substring(0, 150)}...
+                    </p>
+                    <div className="flex gap-4 text-sm">
+                      <span className="text-red-600">
+                        Sua resposta: {questao.respostaDada !== null ? String.fromCharCode(65 + questao.respostaDada) : 'Em branco'}
+                      </span>
+                      <span className="text-green-600">
+                        Resposta correta: {String.fromCharCode(65 + questao.respostaCorreta)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Pontos Fortes */}
+          {analise.pontosFortes.length > 0 && (
+            <Card className="border-green-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-green-600">
+                  <CheckCircle2 className="h-5 w-5" />
+                  Pontos Fortes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {analise.pontosFortes.map((ponto, idx) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className="text-green-600">✓</span>
+                      <span>{ponto}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Pontos Fracos */}
+          {analise.pontosFracos.length > 0 && (
+            <Card className="border-orange-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-orange-600">
+                  <AlertCircle className="h-5 w-5" />
+                  Pontos a Melhorar
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {analise.pontosFracos.map((ponto, idx) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className="text-orange-600">!</span>
+                      <span>{ponto}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Recomendações */}
+          {analise.recomendacoes.length > 0 && (
+            <Card className="border-blue-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-blue-600">
+                  <BookOpen className="h-5 w-5" />
+                  Recomendações
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {analise.recomendacoes.map((rec, idx) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className="text-blue-600">→</span>
+                      <span>{rec}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     )

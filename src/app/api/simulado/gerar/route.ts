@@ -8,11 +8,11 @@ export async function POST(request: NextRequest) {
     console.log('🔄 Gerando simulado...')
     
     const body = await request.json()
-    const { disciplina, quantidade = 10 } = body
+    const { disciplinas, quantidade = 10 } = body
 
-    if (!disciplina) {
+    if (!disciplinas || disciplinas.length === 0) {
       return NextResponse.json(
-        { erro: 'Disciplina é obrigatória' },
+        { erro: 'Pelo menos uma disciplina é obrigatória' },
         { status: 400 }
       )
     }
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' })
 
     const prompt = `
-Gere ${quantidade} questões de múltipla escolha sobre ${disciplina} no estilo ENEM.
+Gere ${quantidade} questões de múltipla escolha sobre ${disciplinas.join(', ')} no estilo ENEM.
 
 IMPORTANTE: Retorne APENAS um JSON válido, sem markdown, sem explicações.
 
@@ -39,7 +39,7 @@ Formato esperado:
       ],
       "respostaCorreta": 0,
       "explicacao": "Explicação detalhada da resposta correta",
-      "disciplina": "${disciplina}",
+      "disciplina": "${disciplinas.join(', ')}",
       "dificuldade": "medio"
     }
   ]
@@ -93,7 +93,7 @@ Retorne APENAS o JSON válido.
         alternativas: alternativasArray, // ✅ Array de strings
         respostaCorreta: q.respostaCorreta,
         explicacao: q.explicacao,
-        disciplina: q.disciplina || disciplina,
+        disciplina: q.disciplina || disciplinas.join(', '),
         dificuldade: q.dificuldade || 'medio'
       }
     })

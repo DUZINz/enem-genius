@@ -106,8 +106,10 @@ SEJA ESPECÍFICO E CONSTRUTIVO!`
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: analisePrompt }] }],
-          generationConfig: { temperature: 0.5, maxOutputTokens: 1024 }
-        })
+          generationConfig: { temperature: 0.5, maxOutputTokens: 1024 } 
+
+          
+          })
       }
     )
 
